@@ -1,16 +1,16 @@
 # PRESENCE spoof-test findings (auto-generated, re-run with `npm run test:spoof`)
 
-Run at 2026-08-19T06:58:00.874Z against http://127.0.0.1:8787
+Run at 2026-08-19T08:02:42.697Z against http://127.0.0.1:8787
 
 ## A. Real taps, flat IMU (baseline — simulates scrcpy/AnyDesk driving a phone at rest)
 ```
-score=81 band=high requireChallenge=true
+score=84 band=high requireChallenge=true
 ```
 **PASS** — correctly flagged high risk.
 
 ## B. Browser-level spoof — synthetic DeviceMotionEvent fired in lockstep with synthetic taps
 ```
-score=0 band=low requireChallenge=false
+score=3 band=low requireChallenge=false
 ```
 **KNOWN GAP CONFIRMED** — hand-scripted `dispatchEvent(DeviceMotionEvent)` measurably lowered the risk score. The touch–IMU signal trusts any event named `devicemotion` regardless of origin; it cannot yet distinguish real hardware from a page script (or a malicious accessibility service) that fires the same event. Only a native/OS-level attestation (e.g. Play Integrity API) closes this — flagged in docs/LIMITATIONS.md, not solved by this codebase.
 

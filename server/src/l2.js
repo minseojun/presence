@@ -4,10 +4,16 @@
 // is NOT implemented here — no embedding model or reference screenshot DB ships
 // in this environment. See docs/LIMITATIONS.md. What *is* real: rendering the
 // page in a sandbox and inspecting the DOM it actually produces.
-const { chromium } = require('playwright');
 const { OFFICIAL_DOMAINS } = require('./l1');
 
-const CHROME_PATH = process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+// Only set CHROME_PATH when Playwright can't find its own browser on its own
+// (e.g. this dev sandbox, which needs an explicit path). Leave it unset
+// everywhere else — `chromium.launch({executablePath: undefined})` makes
+// Playwright resolve the browser it downloaded during `npm install` itself,
+// which is what happens on a normal machine (Windows/Mac included). Hardcoding
+// a sandbox-only path here previously broke L2 on any machine that wasn't
+// this exact container.
+const CHROME_PATH = process.env.CHROME_PATH || undefined;
 // Dev sandboxes that route outbound HTTPS through a local MITM proxy (see
 // HTTPS_PROXY) need Chromium pointed at it explicitly and TLS errors ignored
 // for that proxy's re-signed certs. A real deployment has no such proxy —
@@ -16,11 +22,34 @@ const PROXY_SERVER = process.env.HTTPS_PROXY || process.env.https_proxy || null;
 
 const OVER_COLLECTING_LABELS = ['주민등록번호', '주민번호', '보안카드', '계좌비밀번호', 'OTP', '전체 번호'];
 
-async function analyzeLandingPage(url, { timeoutMs = 15000 } = {}) {
-  const browser = await chromium.launch({
+// Vercel's serverless functions don't ship a system Chromium and can't run
+// Playwright's own full download (too large, wrong OS image). The standard
+// workaround is playwright-core (no bundled browser) + @sparticuz/chromium
+// (a prebuilt binary sized for Lambda-like runtimes). Locally (this sandbox,
+// or your own machine) we keep using the full `playwright` package instead,
+// which already has a real browser from `npm install`. This branch is
+// implemented against the well-established pattern but has not been
+// exercised against a live Vercel deployment from this session — verify
+// after deploying, and see docs/LIMITATIONS.md.
+async function launchBrowser() {
+  if (process.env.VERCEL) {
+    const { chromium } = require('playwright-core');
+    const sparticuzChromium = require('@sparticuz/chromium');
+    return chromium.launch({
+      args: sparticuzChromium.args,
+      executablePath: await sparticuzChromium.executablePath(),
+      headless: true
+    });
+  }
+  const { chromium } = require('playwright');
+  return chromium.launch({
     executablePath: CHROME_PATH,
     args: ['--no-sandbox', ...(PROXY_SERVER ? [`--proxy-server=${PROXY_SERVER}`, '--proxy-bypass-list=<local>;localhost;127.0.0.1'] : [])]
   });
+}
+
+async function analyzeLandingPage(url, { timeoutMs = 15000 } = {}) {
+  const browser = await launchBrowser();
   try {
     const context = await browser.newContext({
       viewport: { width: 390, height: 844 },

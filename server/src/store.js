@@ -5,7 +5,11 @@ const fs = require('fs');
 const path = require('path');
 
 const SESSIONS_DIR = path.join(__dirname, '..', 'data', 'sessions');
-fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+// Serverless platforms (Vercel) ship this directory read-only as part of the
+// deployment bundle; mkdirSync on an already-existing path is a no-op, but
+// guard anyway so a missing dir there doesn't crash every cold start. Actual
+// writes (saveSession) are gated off entirely on Vercel — see app.js.
+try { fs.mkdirSync(SESSIONS_DIR, { recursive: true }); } catch (_) {}
 
 function saveSession(record) {
   const id = `${record.meta?.label || 'unlabeled'}_${record.meta?.participant || 'anon'}_${Date.now()}`;
