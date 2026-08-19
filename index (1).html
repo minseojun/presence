@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>PRESENCE — 세션 무결성 검증</title>
+<style>
+  :root{
+    --bg:#0a0e14;--panel:#111822;--panel2:#0d141d;--line:#1d2836;
+    --ink:#cdd8e8;--mut:#6b7c93;--dim:#43526a;
+    --cyan:#34d3ee;--violet:#8b7bff;--green:#37d07f;--amber:#ffb347;--red:#ff5c5c;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Roboto Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;overscroll-behavior:none}
+  body{max-width:520px;margin:0 auto;min-height:100vh;padding-bottom:72px}
+  header{padding:14px 16px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:linear-gradient(180deg,var(--bg),rgba(10,14,20,.86));backdrop-filter:blur(6px);z-index:10}
+  .brand{display:flex;align-items:baseline;gap:9px}
+  .brand h1{font-size:16px;letter-spacing:.28em;margin:0;font-weight:700}
+  .brand .v{font-family:var(--mono);font-size:10px;color:var(--dim)}
+  .tag{margin:3px 0 0;font-size:11px;color:var(--mut)}
+  .status{display:flex;gap:8px;margin-top:10px;font-family:var(--mono);font-size:10.5px}
+  .chip{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:6px 8px;display:flex;flex-direction:column;gap:2px}
+  .chip b{color:var(--ink);font-size:13px}
+  .chip span{color:var(--mut);text-transform:uppercase;letter-spacing:.09em;font-size:8.5px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);display:inline-block;vertical-align:middle;margin-right:4px}
+  .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .dot.err{background:var(--red);box-shadow:0 0 8px var(--red)}
+  main{padding:14px 16px}
+  .view{display:none}.view.active{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  .card h2{margin:0 0 4px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
+  .lead{font-size:12.5px;color:var(--mut);line-height:1.55;margin:0 0 12px}
+  label.f{display:block;font-size:11px;color:var(--mut);margin:12px 0 5px;letter-spacing:.05em}
+  input.t{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--ink);font-family:var(--mono);font-size:15px;padding:11px 12px;outline:none}
+  input.t:focus{border-color:var(--cyan)}
+  .amt{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap}
+  .amt button{flex:1;min-width:70px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 4px;font-family:var(--mono);font-size:12px}
+  .amt button:active{border-color:var(--cyan)}
+  .btn{width:100%;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;margin-top:16px;color:#04121a;background:var(--cyan)}
+  .btn:active{filter:brightness(.9)}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);font-weight:600}
+  .btn.warn{background:var(--amber);color:#22160a}
+  .btn.sm{padding:10px;font-size:13px;margin-top:8px}
+  .btn[disabled]{opacity:.4}
+  .scope-wrap{background:#060a0f;border:1px solid var(--line);border-radius:10px;padding:8px 8px 4px}
+  canvas{width:100%;display:block;border-radius:6px;touch-action:none}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:var(--mut);padding:6px 4px 2px}
+  .legend i{width:16px;height:2px;display:inline-block;vertical-align:middle;margin-right:5px;border-radius:2px}
+  .readout{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;font-family:var(--mono)}
+  .ro{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+  .ro span{font-size:8.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.09em;display:block}
+  .ro b{font-size:18px}
+  .verdict{border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid}
+  .verdict.low{border-color:#1c5a3c;background:#0c1c16}
+  .verdict.mid{border-color:#6a4d18;background:#1c150a}
+  .verdict.high{border-color:#6a2222;background:#1c0d0d}
+  .verdict .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .verdict .score{font-family:var(--mono);font-size:34px;font-weight:700;line-height:1}
+  .verdict.low .score{color:var(--green)}.verdict.mid .score{color:var(--amber)}.verdict.high .score{color:var(--red)}
+  .verdict .label{font-size:14px;font-weight:700}
+  .bars{margin-top:12px;display:flex;flex-direction:column;gap:7px}
+  .bar{font-family:var(--mono);font-size:10.5px}
+  .bar .bl{display:flex;justify-content:space-between;color:var(--mut);margin-bottom:3px}
+  .bar .track{height:7px;background:var(--panel2);border-radius:5px;overflow:hidden}
+  .bar .fill{height:100%;border-radius:5px}
+  .bar.off{opacity:.4}
+  .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;overflow:hidden;margin:8px 0}
+  .seg button{flex:1;background:transparent;border:none;color:var(--mut);padding:9px;font-size:12px;font-family:var(--mono)}
+  .seg button.on{background:var(--cyan);color:#04121a;font-weight:700}
+  .rec-stat{display:flex;gap:8px;margin-top:12px;font-family:var(--mono)}
+  .rec-stat .ro{flex:1;text-align:center}
+  table.cmp{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px;margin-top:6px}
+  table.cmp th,table.cmp td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:right}
+  table.cmp th:first-child,table.cmp td:first-child{text-align:left;color:var(--mut)}
+  table.cmp .g{color:var(--green)}table.cmp .r{color:var(--red)}
+  .modal{position:fixed;inset:0;background:rgba(4,7,11,.9);display:none;align-items:center;justify-content:center;z-index:50;padding:24px;backdrop-filter:blur(3px)}
+  .modal.show{display:flex}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;width:100%;max-width:360px;text-align:center}
+  .sheet h3{margin:0 0 6px;font-size:17px}
+  .sheet p{margin:0 0 14px;font-size:12.5px;color:var(--mut);line-height:1.55}
+  .ring{width:132px;height:132px;margin:6px auto 14px;border-radius:50%;border:3px solid var(--line);display:flex;align-items:center;justify-content:center;position:relative;transition:.1s;user-select:none}
+  .ring b{font-family:var(--mono);font-size:26px}
+  .ring small{position:absolute;bottom:20px;font-family:var(--mono);font-size:9px;color:var(--mut);letter-spacing:.1em}
+  .meter{height:8px;background:var(--panel2);border-radius:5px;overflow:hidden;margin:0 0 6px}
+  .meter i{display:block;height:100%;width:0;background:var(--cyan);transition:width .08s}
+  nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:var(--panel2);border-top:1px solid var(--line)}
+  nav button{flex:1;background:none;border:none;color:var(--mut);padding:11px 0 14px;font-size:11px}
+  nav button.on{color:var(--cyan)}
+  nav button .ic{display:block;font-size:16px;margin-bottom:2px}
+  .foot{font-size:10.5px;color:var(--dim);line-height:1.6;padding:2px 2px 8px}
+  .pill{display:inline-block;font-family:var(--mono);font-size:9.5px;padding:2px 7px;border-radius:20px;border:1px solid var(--line);color:var(--mut)}
+  .pill.ok{color:var(--green);border-color:#1c5a3c}
+  .pill.no{color:var(--amber);border-color:#6a4d18}
+  code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:4px;color:var(--cyan);font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><h1>PRESENCE</h1><span class="v">session integrity · L3·L4</span></div>
+  <p class="tag">이 세션을 사람이 직접 조작하는가, 원격으로 조종당하는가</p>
+  <div class="status">
+    <div class="chip"><span>sensor</span><b id="sRate"><i class="dot" id="sDot"></i>off</b></div>
+    <div class="chip"><span>calibration</span><b id="sCal">미보정</b></div>
+    <div class="chip"><span>risk</span><b id="sRisk">—</b></div>
+  </div>
+</header>
+<main>
+  <!-- 데모 -->
+  <section class="view active" id="v-demo">
+    <div class="card" id="startCard">
+      <h2>센서 연결</h2>
+      <p class="lead">가속도계·자이로 접근을 허용해야 검증이 동작합니다. 안드로이드 크롬 · HTTPS 환경에서 테스트하세요.</p>
+      <button class="btn" id="btnStart">센서 시작</button>
+      <button class="btn ghost sm" id="btnCal" disabled>기준 보정 (권장)</button>
+      <p class="foot" id="startHint"></p>
+    </div>
+    <div class="card">
+      <h2>모의 이체</h2>
+      <p class="lead">실제 은행 흐름을 흉내 낸 화면입니다. 조작 중의 터치가 IMU와 상관되는지 백그라운드에서 계속 측정합니다.</p>
+      <label class="f">받는 분 계좌</label>
+      <input class="t" id="acct" inputmode="numeric" value="110-482-771903">
+      <label class="f">이체 금액</label>
+      <input class="t" id="amt" inputmode="numeric" value="1,200,000">
+      <div class="amt">
+        <button data-a="100000">+10만</button><button data-a="500000">+50만</button>
+        <button data-a="1000000">+100만</button><button data-a="0">정정</button>
+      </div>
+      <button class="btn" id="btnTransfer">이체하기</button>
+    </div>
+    <div id="verdictSlot"></div>
+    <p class="foot">데모 — ① 폰을 손에 들고 버튼을 눌러 이체 → <b>통과</b>. ② PC에서 <code>scrcpy</code>로 같은 폰을 원격 조작 → 화면입력은 들어가나 폰 정지 → <b>고위험 차단</b>. 궤적·타이밍 신호는 <b>검증랩</b> 탭에서 손끝으로 직접 확인하세요.</p>
+  </section>
+  <!-- 검증랩 -->
+  <section class="view" id="v-lab">
+    <div class="card">
+      <h2>① 터치–IMU 오실로스코프</h2>
+      <p class="lead">화면을 두드리면 터치 순간마다 임펄스가 잡히는지 실시간으로 보입니다. 정합되면 <b style="color:var(--green)">초록</b>, 폰 정지(원격)면 <b style="color:var(--red)">빨강</b>.</p>
+      <div class="scope-wrap"><canvas id="scope" height="300"></canvas>
+        <div class="legend"><span><i style="background:var(--cyan)"></i>|a|</span><span><i style="background:var(--violet)"></i>|ω|</span><span><i style="background:var(--green)"></i>정합</span><span><i style="background:var(--red)"></i>미정합</span></div>
+      </div>
+      <div class="readout">
+        <div class="ro"><span>impulse ratio</span><b id="lRatio">—</b></div>
+        <div class="ro"><span>sample rate</span><b id="lRate">—</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>② 궤적 기하 · 이벤트 타이밍</h2>
+      <p class="lead">아래 판에서 <b>한 점에서 다른 점으로 천천히 드래그</b>하세요. 사람 손은 곡선을 그리고 목표 근처에서 미세 보정을 합니다(피츠의 법칙). 원격 커서는 직선적이고 규칙적입니다.</p>
+      <div class="scope-wrap"><canvas id="pad" height="240"></canvas></div>
+      <div class="readout">
+        <div class="ro"><span>straightness</span><b id="tStr">—</b></div>
+        <div class="ro"><span>submovements</span><b id="tSub">—</b></div>
+        <div class="ro"><span>move rate</span><b id="tRate">—</b></div>
+        <div class="ro"><span>interval cv</span><b id="tCv">—</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>③ 융합 위험도</h2>
+      <p class="lead">네 신호를 가중 융합합니다. 위조가 어려운 물리 신호에 무게를 둡니다.</p>
+      <div id="labBars" class="bars"></div>
+      <button class="btn ghost sm" id="btnClear">버퍼 초기화</button>
+    </div>
+  </section>
+  <!-- 수집 -->
+  <section class="view" id="v-collect">
+    <div class="card">
+      <h2>세션 데이터 수집</h2>
+      <p class="lead">L3 학습 데이터를 직접 만드는 도구입니다. 본인·동의한 참여자 대상, 자체 모의 화면에서만 수집하세요.</p>
+      <label class="f">라벨</label>
+      <div class="seg" id="segLabel"><button data-l="normal" class="on">정상 (손)</button><button data-l="remote">원격 (scrcpy)</button></div>
+      <label class="f">참여자 ID</label>
+      <input class="t" id="pid" placeholder="p01">
+      <div class="rec-stat"><div class="ro"><span>state</span><b id="cState">idle</b></div><div class="ro"><span>imu</span><b id="cImu">0</b></div><div class="ro"><span>taps</span><b id="cTaps">0</b></div></div>
+      <button class="btn" id="btnRec">녹화 시작</button>
+      <button class="btn ghost sm" id="btnExport" disabled>JSON 내보내기</button>
+    </div>
+    <div class="card">
+      <h2>평가 · 층별 비교 (ablation)</h2>
+      <p class="lead">마지막 녹화를 슬롯에 저장해 정상 vs 원격을 나란히 비교합니다. 각 신호가 판정에 얼마나 기여하는지 숫자로 보여줍니다.</p>
+      <div style="display:flex;gap:8px">
+        <button class="btn ghost sm" id="slotNormal" style="margin-top:0">정상 슬롯 저장</button>
+        <button class="btn ghost sm" id="slotRemote" style="margin-top:0">원격 슬롯 저장</button>
+      </div>
+      <div id="cmpSlot"></div>
+    </div>
+    <p class="foot">스키마: <code>{meta, taps[], trace[], imu[], features}</code> — LightGBM/1D-CNN 입력으로 바로 사용.</p>
+  </section>
+</main>
+
+<!-- 보정 modal -->
+<div class="modal" id="calModal"><div class="sheet">
+  <h3>기준 보정</h3>
+  <p>폰을 <b>평소처럼 손에 들고</b> 아래 원을 <b>8번</b> 톡톡 두드리세요. 이 기기의 임펄스 세기를 측정해 임계값을 자동 설정합니다.</p>
+  <div class="ring" id="calRing"><b id="calCnt">0/8</b><small>tap</small></div>
+  <p class="foot" id="calMsg" style="min-height:16px"></p>
+  <button class="btn ghost" id="btnCalClose">닫기</button>
+</div></div>
+<!-- shake modal -->
+<div class="modal" id="shakeModal"><div class="sheet">
+  <h3>본인 확인이 필요합니다</h3>
+  <p>이체를 완료하려면 <b>기기를 가볍게 흔들어</b> 주세요. 원격 조작 중에는 불가능합니다.</p>
+  <div class="ring" id="shakeRing"><b id="shakePct">0%</b><small id="shakeTimer">4.0s</small></div>
+  <div class="meter"><i id="shakeBar"></i></div>
+  <button class="btn ghost" id="btnCancelShake">취소</button>
+</div></div>
+
+<nav>
+  <button class="on" data-v="demo"><span class="ic">◎</span>데모</button>
+  <button data-v="lab"><span class="ic">〜</span>검증랩</button>
+  <button data-v="collect"><span class="ic">⬒</span>수집</button>
+</nav>
+
+<script>
+/* ===== stats ===== */
+function median(a){const b=[...a].sort((x,y)=>x-y),n=b.length;return n?(n%2?b[(n-1)/2]:(b[n/2-1]+b[n/2])/2):0;}
+function mad(a,m){return median(a.map(x=>Math.abs(x-m)));}
+const mean=a=>a.reduce((s,x)=>s+x,0)/(a.length||1);
+const stdev=a=>{const m=mean(a);return Math.sqrt(mean(a.map(x=>(x-m)**2)));};
+const dist=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y);
+
+/* ===== calibratable config ===== */
+const CFG={zTh:3.5,minPeakAbs:0.35,gZ:4.0,gMinAbs:6.0,shakeNeed:13,calibrated:false,weak:false};
+
+/* ===== L3 signal 1: touch–IMU impulse ===== */
+function analyzeSession(taps,imu,o={}){
+  const preMs=60,postMs=220,zTh=o.zTh??CFG.zTh,minPeakAbs=o.minPeakAbs??CFG.minPeakAbs;
+  const A=imu.map(s=>s.mag),base=median(A),rstd=Math.max(1.4826*mad(A,base),1e-6);
+  const G=imu.map(s=>s.gmag||0),Gb=median(G),Grstd=Math.max(1.4826*mad(G,Gb),1e-6);
+  let hit=0;
+  const perTap=taps.map(tp=>{
+    const w=imu.filter(s=>s.t>=tp.t-preMs&&s.t<=tp.t+postMs);
+    let ap=0,gp=0;for(const s of w){if(s.mag>ap)ap=s.mag;if((s.gmag||0)>gp)gp=s.gmag||0;}
+    const az=(ap-base)/rstd,aHit=az>=zTh&&(ap-base)>=minPeakAbs;
+    const gz=(gp-Gb)/Grstd,gHit=gz>=CFG.gZ&&(gp-Gb)>=CFG.gMinAbs;
+    const present=aHit||gHit;if(present)hit++;
+    return{t:tp.t,peak:+ap.toFixed(3),z:+az.toFixed(2),present};
+  });
+  return{base:+base.toFixed(3),rstd:+rstd.toFixed(4),tapCount:taps.length,impulseHits:hit,
+    impulseRatio:taps.length?+(hit/taps.length).toFixed(3):0,perTap};
+}
+/* ===== L3 signal 2: trajectory geometry ===== */
+function analyzeTrajectory(pts){
+  if(pts.length<6)return{n:pts.length,insufficient:true,pRemote:0};
+  let path=0;for(let i=1;i<pts.length;i++)path+=dist(pts[i-1],pts[i]);
+  const chord=dist(pts[0],pts[pts.length-1])||1e-6,straightness=path/chord;
+  const sp=[];for(let i=1;i<pts.length;i++){const dt=(pts[i].t-pts[i-1].t)||1;sp.push(dist(pts[i-1],pts[i])/dt);}
+  let sub=0,ms=mean(sp);for(let i=1;i<sp.length-1;i++)if(sp[i]>sp[i-1]&&sp[i]>sp[i+1]&&sp[i]>ms*0.6)sub++;
+  const frac=pts.filter(p=>(p.x%1)||(p.y%1)).length/pts.length;
+  let p=0;
+  p+=straightness<1.02?0.45:straightness<1.05?0.2:0;
+  p+=sub<=1?0.3:sub<=3?0.12:0;
+  p+=frac<0.1?0.25:frac<0.4?0.1:0;
+  return{n:pts.length,straightness:+straightness.toFixed(3),submovements:sub,subpixelFrac:+frac.toFixed(2),pRemote:+Math.min(1,p).toFixed(2)};
+}
+/* ===== L3 signal 3: event timing quantization (supporting) ===== */
+function analyzeTiming(pts){
+  if(pts.length<8)return{n:pts.length,insufficient:true,pRemote:0};
+  const iv=[];for(let i=1;i<pts.length;i++)iv.push(pts[i].t-pts[i-1].t);
+  const md=median(iv),cv=stdev(iv)/(mean(iv)||1),rateHz=1000/(mean(iv)||1);
+  const conc=iv.filter(v=>Math.abs(v-md)<=1).length/iv.length;
+  let p=0;
+  if(cv<0.08)p+=0.5;else if(cv<0.13)p+=0.2;
+  if(conc>0.9)p+=0.3;else if(conc>0.8)p+=0.12;
+  if(rateHz<70)p+=0.2;
+  return{n:pts.length,rateHz:+rateHz.toFixed(0),cv:+cv.toFixed(3),conc:+conc.toFixed(2),pRemote:+Math.min(1,p).toFixed(2)};
+}
+/* ===== fusion ===== */
+const LBL={imu:'터치–IMU 임펄스',traj:'궤적 기하',props:'포인터 속성',timing:'이벤트 타이밍'};
+const WT={imu:0.5,traj:0.3,props:0.12,timing:0.08};
+function propsSignal(f){let p=0;if(f.mouseSeen)p+=0.7;if(f.noTouchDetail)p+=0.25;if(f.quantized)p+=0.15;return{p:+Math.min(1,p).toFixed(2),ok:true};}
+function fuseRisk(parts){
+  let num=0,den=0;const rows=[];
+  for(const k of['imu','traj','props','timing']){
+    const pt=parts[k],active=pt&&pt.ok;
+    if(active){num+=WT[k]*pt.p;den+=WT[k];}
+    rows.push({k,label:LBL[k],p:pt?pt.p:null,w:WT[k],active});
+  }
+  return{score:den?Math.round(100*num/den):0,rows,coverage:+den.toFixed(2)};
+}
+function buildParts(taps,imu,trace){
+  const a=analyzeSession(taps,imu);
+  const parts={};
+  parts.imu=taps.length>=2?{p:+(1-a.impulseRatio).toFixed(2),ok:true,meta:a}:{p:0,ok:false,meta:a};
+  if(trace&&trace.traj&&!trace.traj.insufficient)parts.traj={p:trace.traj.pRemote,ok:true};else parts.traj={p:0,ok:false};
+  if(trace&&trace.timing&&!trace.timing.insufficient)parts.timing={p:trace.timing.pRemote,ok:true};else parts.timing={p:0,ok:false};
+  parts.props=propsSignal(flags);
+  return parts;
+}
+
+/* ===== sensor engine ===== */
+const IMU=[],TAPS=[],KEEP_MS=12000;
+let sensorOn=false,lastMotionT=0,rateHz=0,rateCount=0,rateWin=performance.now();
+let lpX=0,lpY=0,lpZ=0;const LP=0.9;
+const flags={mouseSeen:false,noTouchDetail:false,quantized:false};
+let lastTrace=null,calMode=false,calTaps=[];
+const rec={on:false,label:'normal',imu:[],taps:[],trace:[],t0:0};
+const slots={normal:null,remote:null};
+const now=()=>performance.now();
+const trim=(b,t)=>{while(b.length&&t-b[0].t>KEEP_MS)b.shift();};
+
+function onMotion(e){
+  const t=e.timeStamp||now();let ax,ay,az;const a=e.acceleration;
+  if(a&&a.x!=null){ax=a.x;ay=a.y;az=a.z;}
+  else{const g=e.accelerationIncludingGravity||{};lpX=LP*lpX+(1-LP)*(g.x||0);lpY=LP*lpY+(1-LP)*(g.y||0);lpZ=LP*lpZ+(1-LP)*(g.z||0);ax=(g.x||0)-lpX;ay=(g.y||0)-lpY;az=(g.z||0)-lpZ;}
+  const mag=Math.hypot(ax||0,ay||0,az||0);
+  const rr=e.rotationRate||{},gmag=Math.hypot(rr.alpha||0,rr.beta||0,rr.gamma||0);
+  IMU.push({t,ax,ay,az,mag,gmag});trim(IMU,t);
+  if(rec.on)rec.imu.push({t:+(t-rec.t0).toFixed(1),mag:+mag.toFixed(4),gmag:+gmag.toFixed(3)});
+  lastMotionT=t;rateCount++;const wn=now();if(wn-rateWin>=1000){rateHz=Math.round(rateCount*1000/(wn-rateWin));rateCount=0;rateWin=wn;}
+}
+function registerTap(t,x,y,ptype,pressure,width,height){
+  const hasForce=pressure>0&&pressure!==0.5,hasRadius=(width>1)||(height>1);
+  const quant=Number.isInteger(x)&&Number.isInteger(y);
+  if(ptype==='mouse')flags.mouseSeen=true;
+  if(!hasForce&&!hasRadius)flags.noTouchDetail=true;
+  if(quant)flags.quantized=true;
+  TAPS.push({t,x,y,ptype,quant});trim(TAPS,t);
+  if(rec.on)rec.taps.push({t:+(t-rec.t0).toFixed(1),x,y,ptype,quant});
+  if(calMode)onCalTap(t);
+}
+if(window.PointerEvent)document.addEventListener('pointerdown',e=>registerTap(e.timeStamp||now(),e.clientX,e.clientY,e.pointerType,e.pressure,e.width,e.height),{passive:true});
+else document.addEventListener('touchstart',e=>{const tt=e.changedTouches[0]||{};registerTap(e.timeStamp||now(),tt.clientX,tt.clientY,'touch',tt.force||0,(tt.radiusX||0)*2,(tt.radiusY||0)*2);},{passive:true});
+
+async function startSensors(){
+  const hint=document.getElementById('startHint');
+  try{
+    if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){
+      const p=await DeviceMotionEvent.requestPermission();
+      if(p!=='granted'){hint.textContent='권한 거부됨. iOS는 설정에서 동작 센서 허용이 필요합니다.';return;}
+    }
+    window.addEventListener('devicemotion',onMotion,{passive:true});
+    sensorOn=true;document.getElementById('startCard').style.display='none';
+    document.getElementById('btnCal').disabled=false;
+    setTimeout(()=>{if(now()-lastMotionT>1800){hint.textContent='센서 데이터가 없습니다 — HTTPS 접속·안드로이드 크롬 여부를 확인하세요.';document.getElementById('startCard').style.display='block';document.getElementById('sDot').className='dot err';}},2000);
+  }catch(err){hint.textContent='센서 시작 실패: '+err.message;}
+}
+
+/* ===== calibration ===== */
+function onCalTap(t){
+  const w=IMU.filter(s=>s.t>=t-60&&s.t<=t+220);let pk=0;for(const s of w)if(s.mag>pk)pk=s.mag;
+  const base=median(IMU.map(s=>s.mag));calTaps.push(Math.max(0,pk-base));
+  document.getElementById('calCnt').textContent=calTaps.length+'/8';
+  if(calTaps.length>=8){
+    calMode=false;const md=median(calTaps);
+    CFG.minPeakAbs=Math.max(0.2,+(0.5*md).toFixed(2));CFG.calibrated=true;CFG.weak=md<0.3;
+    const msg=document.getElementById('calMsg');
+    msg.innerHTML=CFG.weak
+      ?`측정된 임펄스가 약합니다(Δ≈${md.toFixed(2)} m/s²). 자이로·궤적 신호 위주로 판정합니다.`
+      :`보정 완료 — 임계값 minPeak=${CFG.minPeakAbs} m/s² (기기 Δ≈${md.toFixed(2)}).`;
+    document.getElementById('sCal').textContent=CFG.weak?'보정(약)':'보정됨';
+    setTimeout(()=>document.getElementById('calModal').classList.remove('show'),1400);
+  }
+}
+document.getElementById('btnCal').onclick=()=>{calTaps=[];calMode=true;document.getElementById('calCnt').textContent='0/8';document.getElementById('calMsg').textContent='';document.getElementById('calModal').classList.add('show');};
+document.getElementById('calRing').addEventListener('pointerdown',e=>e.stopPropagation());
+document.getElementById('btnCalClose').onclick=()=>{calMode=false;document.getElementById('calModal').classList.remove('show');};
+
+/* ===== UI: demo ===== */
+const $=s=>document.querySelector(s);
+document.getElementById('btnStart').onclick=startSensors;
+document.querySelectorAll('.amt button').forEach(b=>b.addEventListener('click',()=>{const add=+b.dataset.a,el=$('#amt');let cur=+String(el.value).replace(/[^\d]/g,'')||0;cur=add===0?0:cur+add;el.value=cur.toLocaleString('ko-KR');}));
+document.getElementById('btnTransfer').onclick=()=>{
+  const t=now(),rt=TAPS.filter(x=>t-x.t<=10000),win=IMU.filter(x=>t-x.t<=10000);
+  const trace=(lastTrace&&t-lastTrace.t<30000)?lastTrace:null;
+  const parts=buildParts(rt,win,trace),r=fuseRisk(parts);
+  renderVerdict(parts,r);
+  if(r.score>=30||flags.mouseSeen)openShake();else finalizeTransfer(true);
+};
+function bandOf(s){return s<30?'low':s<60?'mid':'high';}
+function barColor(p){return p<.3?'var(--green)':p<.6?'var(--amber)':'var(--red)';}
+function barsHTML(rows){return rows.map(x=>`<div class="bar ${x.active?'':'off'}"><div class="bl"><span>${x.label} · w${x.w}</span><span>${x.active?(x.p*100).toFixed(0)+'%':'표본부족'}</span></div><div class="track"><div class="fill" style="width:${x.active?x.p*100:0}%;background:${barColor(x.p||0)}"></div></div></div>`).join('');}
+function renderVerdict(parts,r){
+  const band=bandOf(r.score),label=band==='low'?'물리적 현존 확인 — 저위험':band==='mid'?'추가 확인 필요 — 주의':'원격 조작 의심 — 고위험';
+  $('#verdictSlot').innerHTML=`<div class="verdict ${band}"><div class="row"><div><div class="label">${label}</div><div style="font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:4px">신호 커버리지 ${Math.round(r.coverage*100)}% · ${CFG.calibrated?'보정됨':'미보정'}</div></div><div class="score">${r.score}</div></div><div class="bars" style="margin-top:14px">${barsHTML(r.rows)}</div></div>`;
+  $('#verdictSlot').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function finalizeTransfer(ok){
+  const el=document.createElement('div');el.className='verdict '+(ok?'low':'high');
+  el.innerHTML=`<div class="label">${ok?'✓ 이체 완료 (모의)':'✕ 이체 차단됨'}</div><div style="font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:5px">${ok?'물리적 현존 챌린지 통과':'현존 증명 실패 — 원격 조작 가능성'}</div>`;
+  $('#verdictSlot').prepend(el);
+}
+/* shake */
+let shakeRAF=null;
+function openShake(){
+  const m=$('#shakeModal');m.classList.add('show');
+  const ring=$('#shakeRing'),pct=$('#shakePct'),bar=$('#shakeBar'),timer=$('#shakeTimer');
+  const NEED=CFG.shakeNeed,DUR=4000,start=now();let energy=0,passed=false;
+  (function frame(){
+    const t=now(),left=Math.max(0,DUR-(t-start));let pk=0;for(const s of IMU)if(t-s.t<=400&&s.mag>pk)pk=s.mag;
+    bar.style.width=Math.min(100,pk/NEED*100)+'%';if(pk>=NEED)energy++;
+    const prog=Math.min(1,energy/8);pct.textContent=Math.round(prog*100)+'%';
+    ring.style.borderColor=prog>=1?'var(--green)':pk>=NEED?'var(--cyan)':'var(--line)';timer.textContent=(left/1000).toFixed(1)+'s';
+    if(prog>=1&&!passed){passed=true;pct.textContent='OK';setTimeout(()=>{closeShake();finalizeTransfer(true);},420);return;}
+    if(left<=0){closeShake();finalizeTransfer(false);return;}
+    shakeRAF=requestAnimationFrame(frame);
+  })();
+}
+function closeShake(){if(shakeRAF)cancelAnimationFrame(shakeRAF);$('#shakeModal').classList.remove('show');}
+document.getElementById('btnCancelShake').onclick=()=>{closeShake();finalizeTransfer(false);};
+
+/* ===== lab: oscilloscope ===== */
+const cv=$('#scope'),cx=cv.getContext('2d');
+const pad=$('#pad'),px=pad.getContext('2d');
+function fit(c){const w=c.clientWidth;c.width=w*devicePixelRatio;c.height=c.getAttribute('height')*devicePixelRatio;c.getContext('2d').setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
+function fitAll(){fit(cv);fit(pad);drawPadBase();}
+window.addEventListener('resize',fitAll);
+function drawScope(){
+  const W=cv.clientWidth,H=+cv.getAttribute('height'),t=now(),span=6000;cx.clearRect(0,0,W,H);
+  cx.strokeStyle='#0f1620';cx.lineWidth=1;for(let i=1;i<5;i++){const y=H*i/5;cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke();}
+  const win=IMU.filter(s=>t-s.t<=span),X=ts=>W-(t-ts)/span*W;
+  const aMax=Math.max(2.5,...win.map(s=>s.mag)),gMax=Math.max(30,...win.map(s=>s.gmag));
+  const Ya=v=>H-8-(v/aMax)*(H*.6),Yg=v=>H-8-(v/gMax)*(H*.6);
+  cx.strokeStyle='rgba(139,123,255,.5)';cx.lineWidth=1.2;cx.beginPath();win.forEach((s,i)=>{const x=X(s.t),y=Yg(s.gmag);i?cx.lineTo(x,y):cx.moveTo(x,y);});cx.stroke();
+  cx.strokeStyle='#34d3ee';cx.lineWidth=1.8;cx.beginPath();win.forEach((s,i)=>{const x=X(s.t),y=Ya(s.mag);i?cx.lineTo(x,y):cx.moveTo(x,y);});cx.stroke();
+  const rt=TAPS.filter(s=>t-s.t<=span),an=analyzeSession(rt,win),map=new Map(an.perTap.map(p=>[p.t,p.present]));
+  rt.forEach(tp=>{const x=X(tp.t),ok=map.get(tp.t);cx.strokeStyle=ok?'#37d07f':'#ff5c5c';cx.lineWidth=1.5;cx.beginPath();cx.moveTo(x,8);cx.lineTo(x,H-6);cx.stroke();cx.fillStyle=ok?'#37d07f':'#ff5c5c';cx.beginPath();cx.arc(x,12,3.2,0,7);cx.fill();});
+  $('#lRatio').textContent=rt.length?an.impulseRatio:'—';$('#lRate').textContent=rateHz?rateHz+' Hz':'—';
+}
+/* lab: trace pad */
+let tracing=false,tracePts=[];
+function drawPadBase(){const W=pad.clientWidth,H=+pad.getAttribute('height');px.clearRect(0,0,W,H);px.fillStyle='#0a1119';px.fillRect(0,0,W,H);
+  px.fillStyle='#16324a';[[0.16,0.75],[0.84,0.28]].forEach(([fx,fy])=>{px.beginPath();px.arc(W*fx,H*fy,13,0,7);px.fill();});
+  px.fillStyle='#3a566f';px.font='11px '+getComputedStyle(document.body).fontFamily;px.fillText('시작',W*0.16-12,H*0.75+30);px.fillText('끝',W*0.84-8,H*0.28-18);}
+function padPos(e){const r=pad.getBoundingClientRect();return{t:e.timeStamp||now(),x:e.clientX-r.left,y:e.clientY-r.top};}
+function collect(e){const list=(e.getCoalescedEvents&&e.getCoalescedEvents().length)?e.getCoalescedEvents():[e];for(const ev of list){const r=pad.getBoundingClientRect();tracePts.push({t:ev.timeStamp||now(),x:ev.clientX-r.left,y:ev.clientY-r.top});}}
+pad.addEventListener('pointerdown',e=>{e.stopPropagation();tracing=true;tracePts=[];const p=padPos(e);tracePts.push(p);pad.setPointerCapture(e.pointerId);});
+pad.addEventListener('pointermove',e=>{if(!tracing)return;collect(e);drawTrace();});
+pad.addEventListener('pointerup',e=>{if(!tracing)return;tracing=false;finishTrace();});
+function drawTrace(){drawPadBase();px.strokeStyle='#34d3ee';px.lineWidth=2;px.beginPath();tracePts.forEach((p,i)=>i?px.lineTo(p.x,p.y):px.moveTo(p.x,p.y));px.stroke();}
+function finishTrace(){
+  const traj=analyzeTrajectory(tracePts),timing=analyzeTiming(tracePts);
+  lastTrace={pts:tracePts.slice(),traj,timing,t:now()};
+  if(rec.on)rec.trace=tracePts.map(p=>({t:+p.t.toFixed(1),x:+p.x.toFixed(2),y:+p.y.toFixed(2)}));
+  $('#tStr').textContent=traj.insufficient?'—':traj.straightness;
+  $('#tSub').textContent=traj.insufficient?'—':traj.submovements;
+  $('#tRate').textContent=timing.insufficient?'—':timing.rateHz+' Hz';
+  $('#tCv').textContent=timing.insufficient?'—':timing.cv;
+  renderLabBars();
+}
+function renderLabBars(){
+  const t=now(),rt=TAPS.filter(x=>t-x.t<=10000),win=IMU.filter(x=>t-x.t<=10000);
+  const parts=buildParts(rt,win,lastTrace),r=fuseRisk(parts);
+  $('#labBars').innerHTML=barsHTML(r.rows)+`<div class="bar" style="margin-top:6px"><div class="bl"><span><b>융합 위험도</b></span><span style="color:${barColor(r.score/100)}"><b>${r.score}/100</b></span></div></div>`;
+}
+document.getElementById('btnClear').onclick=()=>{IMU.length=0;TAPS.length=0;flags.mouseSeen=flags.noTouchDetail=flags.quantized=false;lastTrace=null;drawPadBase();renderLabBars();['tStr','tSub','tRate','tCv'].forEach(id=>$('#'+id).textContent='—');};
+
+/* ===== collect ===== */
+document.querySelectorAll('#segLabel button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#segLabel button').forEach(x=>x.classList.remove('on'));b.classList.add('on');rec.label=b.dataset.l;});
+document.getElementById('btnRec').onclick=function(){
+  if(!rec.on){rec.on=true;rec.imu=[];rec.taps=[];rec.trace=[];rec.t0=now();this.textContent='녹화 정지';this.classList.add('warn');$('#cState').textContent='REC';$('#btnExport').disabled=true;}
+  else{rec.on=false;this.textContent='녹화 시작';this.classList.remove('warn');$('#cState').textContent='ready';$('#btnExport').disabled=rec.imu.length===0;}
+};
+function recFeatures(){const feats=analyzeSession(rec.taps.map(t=>({t:t.t})),rec.imu);const traj=analyzeTrajectory(rec.trace),timing=analyzeTiming(rec.trace);return{imu:feats,trajectory:traj,timing};}
+document.getElementById('btnExport').onclick=()=>{
+  const payload={meta:{label:rec.label,participant:$('#pid').value||'anon',ua:navigator.userAgent,startedAt:new Date().toISOString(),durationMs:+(rec.imu.length?rec.imu[rec.imu.length-1].t:0).toFixed(0),sampleHz:rateHz,cfg:CFG},features:recFeatures(),taps:rec.taps,trace:rec.trace,imu:rec.imu};
+  const blob=new Blob([JSON.stringify(payload)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`session_${rec.label}_${payload.meta.participant}_${Date.now()}.json`;a.click();URL.revokeObjectURL(url);
+};
+function snapshot(){const t=now(),rt=TAPS.filter(x=>t-x.t<=15000),win=IMU.filter(x=>t-x.t<=15000);const parts=buildParts(rt,win,lastTrace);return{parts,risk:fuseRisk(parts)};}
+document.getElementById('slotNormal').onclick=()=>{slots.normal=snapshot();renderCmp();};
+document.getElementById('slotRemote').onclick=()=>{slots.remote=snapshot();renderCmp();};
+function renderCmp(){
+  const n=slots.normal,r=slots.remote;
+  if(!n&&!r){$('#cmpSlot').innerHTML='';return;}
+  const keys=['imu','traj','props','timing'];
+  const cell=(s,k)=>{if(!s)return'—';const row=s.risk.rows.find(x=>x.k===k);return row.active?(row.p*100).toFixed(0)+'%':'·';};
+  let html='<table class="cmp"><tr><th>신호</th><th>정상</th><th>원격</th></tr>';
+  keys.forEach(k=>{html+=`<tr><td>${LBL[k]}</td><td class="g">${cell(n,k)}</td><td class="r">${cell(r,k)}</td></tr>`;});
+  html+=`<tr><td><b>융합 위험도</b></td><td class="g"><b>${n?n.risk.score:'—'}</b></td><td class="r"><b>${r?r.risk.score:'—'}</b></td></tr></table>`;
+  $('#cmpSlot').innerHTML=html;
+}
+
+/* ===== header + loop + nav ===== */
+function loop(){
+  const dot=$('#sDot');
+  if(sensorOn&&now()-lastMotionT<1500)$('#sRate').innerHTML=`<i class="dot on"></i>${rateHz||0} Hz`;
+  else if(sensorOn)$('#sRate').innerHTML=`<i class="dot err"></i>no data`;
+  else $('#sRate').innerHTML=`<i class="dot"></i>off`;
+  const t=now(),rt=TAPS.filter(s=>t-s.t<=10000),win=IMU.filter(s=>t-s.t<=10000);
+  const parts=buildParts(rt,win,(lastTrace&&t-lastTrace.t<30000)?lastTrace:null),r=fuseRisk(parts);
+  $('#sRisk').textContent=(rt.length||lastTrace)?r.score:'—';
+  $('#sRisk').style.color=barColor(r.score/100);
+  $('#cImu').textContent=rec.imu.length;$('#cTaps').textContent=rec.taps.length;
+  if($('#v-lab').classList.contains('active'))drawScope();
+  requestAnimationFrame(loop);
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  b.classList.add('on');$('#v-'+b.dataset.v).classList.add('active');
+  if(b.dataset.v==='lab'){fitAll();renderLabBars();}
+});
+fitAll();loop();
+</script>
+</body>
+</html>
