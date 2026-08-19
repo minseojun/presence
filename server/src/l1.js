@@ -54,13 +54,28 @@ function scoreDomain(rawUrl) {
   const isOfficial = OFFICIAL_DOMAINS.has(registrable);
 
   const tokens = bareHost.split(/[.\-]/).filter(Boolean);
+  // Exclude the TLD from fuzzy comparison — real evaluation against ~400k
+  // labeled domains (scripts/eval_l1_model.js) showed short brand codes like
+  // "nh" (농협) sit within Levenshtein distance 2 of "net" itself, flagging
+  // huge numbers of unrelated .net domains as brand lookalikes. Also require
+  // a minimum brand length for the fuzzy match at all: edit-distance ≤2 from
+  // a 2-3 char string is satisfied by nearly anything that short, so it's
+  // not a meaningful "lookalike" signal — those short codes are still caught
+  // via exact token/substring match below, just not via typo-tolerance.
+  const nonTldTokens = tokens.slice(0, -1);
+  const FUZZY_MIN_BRAND_LEN = 5;
   let closestBrand = null, closestDist = Infinity;
-  for (const tok of tokens) for (const b of BRANDS) {
+  for (const tok of nonTldTokens) for (const b of BRANDS) {
+    if (b.length < FUZZY_MIN_BRAND_LEN) continue;
     const d = levenshtein(tok, b);
     if (d < closestDist) { closestDist = d; closestBrand = b; }
   }
   const exactBrandToken = tokens.some(tok => BRANDS.includes(tok));
-  const brandLookalike = !isOfficial && closestDist > 0 && closestDist <= 2 && closestBrand.length >= 2;
+  // distance<=2 against real data (scripts/eval_l1_model.js) still coincidentally
+  // matched unrelated real brands sharing a generic suffix (usbank.com ~
+  // "nhbank", woot.com ~ "woori") — distance<=1 keeps real single-typo
+  // squats (toos->toss, shinhon->shinhan) while dropping those collisions.
+  const brandLookalike = !isOfficial && closestDist === 1;
   const brandSubstring = !isOfficial && (exactBrandToken || BRANDS.some(b => bareHost.includes(b)));
   const genericSuspiciousWords = ['secure', 'login', 'verify', 'update', 'bank', 'account', 'safe', 'auth', 'app', 'app-center', 'confirm', 'wallet'];
   const brandPlusGenericWord = brandSubstring && tokens.some(t => genericSuspiciousWords.includes(t));

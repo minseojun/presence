@@ -299,7 +299,7 @@
     <div class="card">
       <h2>세션 녹화</h2>
       <label class="f">라벨</label>
-      <div class="seg" id="segLabel"><button data-l="normal" class="on">정상 (손)</button><button data-l="remote">원격 (scrcpy)</button></div>
+      <div class="seg" id="segLabel"><button data-l="normal" class="on">정상 (손)</button><button data-l="remote">원격 조작</button></div>
       <label class="f">참여자 ID</label>
       <input class="t" id="pid" placeholder="p01">
       <div class="rec-stat"><div class="ro"><span>상태</span><b id="cState">대기</b></div><div class="ro"><span>IMU</span><b id="cImu">0</b></div><div class="ro"><span>탭 수</span><b id="cTaps">0</b></div></div>
@@ -425,7 +425,7 @@ function registerTap(t,x,y,ptype,pressure,width,height){
   if(quant)flags.quantized=true;
   TAPS.push({t,x,y,ptype,quant});trim(TAPS,t);
   if(rec.on)rec.taps.push({t:+(t-rec.t0).toFixed(1),x,y,ptype,quant});
-  if(calMode)onCalTap(t);
+  if(calMode)onCalTap(t);else tryAutoCalibrate(t);
 }
 if(window.PointerEvent)document.addEventListener('pointerdown',e=>registerTap(e.timeStamp||now(),e.clientX,e.clientY,e.pointerType,e.pressure,e.width,e.height),{passive:true});
 else document.addEventListener('touchstart',e=>{const tt=e.changedTouches[0]||{};registerTap(e.timeStamp||now(),tt.clientX,tt.clientY,'touch',tt.force||0,(tt.radiusX||0)*2,(tt.radiusY||0)*2);},{passive:true});
@@ -449,7 +449,35 @@ async function startSensors(){
   }catch(err){hint.textContent='센서 시작 실패: '+err.message;notice.style.display='block';notice.textContent='센서를 시작하지 못했습니다: '+err.message;return false;}
 }
 
-/* ===== calibration (dev drawer) ===== */
+/* ===== passive auto-calibration =====
+   minPeakAbs was a flat guessed constant (0.35 m/s^2) applied uniformly to
+   every device/grip. Real recordings (desk vs handheld touch-triggered |a|)
+   show the absolute impulse size varies a lot with how the phone is held —
+   a fixed absolute floor can end up too high for one condition and too low
+   for another, exactly like the shake threshold did across Android/iPhone.
+   Instead of guessing a new constant, quietly calibrate from this session's
+   own real taps: once a handful of taps already clear the z-score bar on
+   their own (relative to that tap's own recent baseline), use their median
+   delta to set the absolute floor — no separate calibration screen needed,
+   it converges within the first few natural taps of the actual flow. */
+const autoCal={deltas:[],done:false};
+function tryAutoCalibrate(t){
+  if(CFG.calibrated||autoCal.done)return;
+  const w=IMU.filter(s=>s.t>=t-60&&s.t<=t+220);let pk=0;for(const s of w)if(s.mag>pk)pk=s.mag;
+  const recent=IMU.filter(s=>s.t>=t-2000&&s.t<t-60);
+  if(recent.length<5)return;
+  const base=median(recent.map(s=>s.mag)),rstd=Math.max(1.4826*mad(recent.map(s=>s.mag),base),1e-6);
+  const delta=pk-base;
+  if(delta/rstd<CFG.zTh)return;
+  autoCal.deltas.push(delta);
+  if(autoCal.deltas.length>=5){
+    const md=median(autoCal.deltas);
+    CFG.minPeakAbs=Math.max(0.05,+(0.5*md).toFixed(2));CFG.calibrated=true;CFG.weak=md<0.15;autoCal.done=true;
+    const cal=document.getElementById('sCal');if(cal)cal.textContent='자동보정됨';
+  }
+}
+
+/* ===== manual calibration (dev drawer, optional) ===== */
 function onCalTap(t){
   const w=IMU.filter(s=>s.t>=t-60&&s.t<=t+220);let pk=0;for(const s of w)if(s.mag>pk)pk=s.mag;
   const base=median(IMU.map(s=>s.mag));calTaps.push(Math.max(0,pk-base));
