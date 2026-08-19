@@ -9,12 +9,16 @@
     "start": "node src/app.js",
     "test:spoof": "node test/spoof_test.js",
     "train": "node ../scripts/train_l3_model.js",
-    "eval:l1": "node ../scripts/eval_l1_model.js"
+    "eval:l1": "node ../scripts/eval_l1_model.js",
+    "build:visual": "node scripts/build_visual_reference.js",
+    "import:real": "node ../scripts/import_real_export.js",
+    "validate:autocal": "node ../scripts/validate_autocalibration.js"
   },
   "dependencies": {
     "@sparticuz/chromium": "^131.0.1",
     "express": "^4.19.2",
     "playwright": "^1.56.1",
-    "playwright-core": "^1.56.1"
+    "playwright-core": "^1.56.1",
+    "sharp": "^0.35.3"
   }
 }

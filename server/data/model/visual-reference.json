@@ -1,0 +1,14 @@
+{
+  "builtAt": "2026-08-19T13:29:10.913Z",
+  "note": "Hand-built generic bank-login mockups — NOT real bank screenshots (this environment cannot reach real bank domains). See LIMITATIONS.md.",
+  "refs": [
+    {
+      "name": "bank-login-blue",
+      "hash": "fffffe7ffc3ffc3ffeffffffffffffffffff000000000000ffffffffffffffff"
+    },
+    {
+      "name": "bank-login-green",
+      "hash": "fffffe7ffc3ffe7ff09fffffffffffffffffffff00000000ffffffffffffffff"
+    }
+  ]
+}
