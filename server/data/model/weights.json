@@ -1,0 +1,5 @@
+{
+  "source": "hand-tuned-default",
+  "note": "Not fit on real data yet. Run scripts/train_l3_model.js once server/data/sessions/ has real recordings — it overwrites this file.",
+  "weights": { "imu": 0.5, "traj": 0.3, "props": 0.12, "timing": 0.08 }
+}

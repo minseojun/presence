@@ -104,10 +104,28 @@
   <div class="status">
     <div class="chip"><span>sensor</span><b id="sRate"><i class="dot" id="sDot"></i>off</b></div>
     <div class="chip"><span>calibration</span><b id="sCal">미보정</b></div>
-    <div class="chip"><span>risk</span><b id="sRisk">—</b></div>
+    <div class="chip"><span>risk (local)</span><b id="sRisk">—</b></div>
+    <div class="chip"><span>server</span><b id="sSrv"><i class="dot" id="srvDot"></i>확인중</b></div>
   </div>
 </header>
 <main>
+  <!-- 링크검사 (L1/L2) -->
+  <section class="view" id="v-link">
+    <div class="card">
+      <h2>L1 · 도메인 정적 판정</h2>
+      <p class="lead">브랜드 유사도, 신규/의심 TLD, punycode, 단축 URL 등 어휘 특징만으로 판정합니다. 화이트리스트에 있는 공식 도메인은 즉시 저위험 처리됩니다.</p>
+      <label class="f">URL</label>
+      <input class="t" id="linkUrl" placeholder="https://kb-bank-secure.tk/login" value="https://kb-bank-secure.tk/login">
+      <button class="btn" id="btnLinkCheck">L1 + L2 검사</button>
+      <div id="l1Result"></div>
+    </div>
+    <div class="card">
+      <h2>L2 · 랜딩페이지 동적 판정</h2>
+      <p class="lead">격리된 헤드리스 브라우저로 실제 페이지를 렌더링해 DOM 신호(APK 유도, 외부 앱 스킴, 개발자도구 차단, 과도한 입력 필드 요구)를 검사합니다. <b>주의</b>: 실제 URL을 렌더링하므로 신뢰할 수 없는 링크는 이 서버가 격리 환경에서 접속합니다 — 진짜 피싱 URL을 넣지 마세요, 데모/자체 페이지로만 테스트하세요.</p>
+      <div id="l2Result"></div>
+    </div>
+    <p class="foot">시각 임베딩(CLIP) 유사도 비교는 이 환경엔 없습니다 — <code>docs/LIMITATIONS.md</code> 참고. 지금은 DOM·URL 휴리스틱까지가 실제 동작하는 범위입니다.</p>
+  </section>
   <!-- 데모 -->
   <section class="view active" id="v-demo">
     <div class="card" id="startCard">
@@ -131,7 +149,7 @@
       <button class="btn" id="btnTransfer">이체하기</button>
     </div>
     <div id="verdictSlot"></div>
-    <p class="foot">데모 — ① 폰을 손에 들고 버튼을 눌러 이체 → <b>통과</b>. ② PC에서 <code>scrcpy</code>로 같은 폰을 원격 조작 → 화면입력은 들어가나 폰 정지 → <b>고위험 차단</b>. 궤적·타이밍 신호는 <b>검증랩</b> 탭에서 손끝으로 직접 확인하세요.</p>
+    <p class="foot">데모 — ① 폰을 손에 들고 버튼을 눌러 이체 → <b>통과</b>. ② PC에서 <code>scrcpy</code>로 같은 폰을 원격 조작 → 화면입력은 들어가나 폰 정지 → <b>고위험 차단</b>. 궤적·타이밍 신호는 <b>검증랩</b> 탭에서 손끝으로 직접 확인하세요. 최종 승인/차단은 항상 <b>서버가 서명</b>합니다 — 클라이언트 콘솔 조작으로는 우회되지 않습니다.</p>
   </section>
   <!-- 검증랩 -->
   <section class="view" id="v-lab">
@@ -208,6 +226,7 @@
 </div></div>
 
 <nav>
+  <button data-v="link"><span class="ic">⛓</span>링크검사</button>
   <button class="on" data-v="demo"><span class="ic">◎</span>데모</button>
   <button data-v="lab"><span class="ic">〜</span>검증랩</button>
   <button data-v="collect"><span class="ic">⬒</span>수집</button>
@@ -362,44 +381,92 @@ document.getElementById('btnCalClose').onclick=()=>{calMode=false;document.getEl
 const $=s=>document.querySelector(s);
 document.getElementById('btnStart').onclick=startSensors;
 document.querySelectorAll('.amt button').forEach(b=>b.addEventListener('click',()=>{const add=+b.dataset.a,el=$('#amt');let cur=+String(el.value).replace(/[^\d]/g,'')||0;cur=add===0?0:cur+add;el.value=cur.toLocaleString('ko-KR');}));
-document.getElementById('btnTransfer').onclick=()=>{
+/* ===== server trust boundary =====
+   The client NEVER decides pass/block itself. It sends raw telemetry to the
+   server, which computes the score and signs the verdict; the client only
+   renders that signed object. Opening devtools and calling finalizeTransfer()
+   directly no longer does anything — there is no such function anymore. */
+async function postJSON(url,body){
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error('server '+r.status);
+  return r.json();
+}
+async function checkServer(){
+  try{await fetch('/api/model/weights');$('#sSrv').innerHTML='<i class="dot on" id="srvDot"></i>연결됨';}
+  catch{$('#sSrv').innerHTML='<i class="dot err" id="srvDot"></i>오프라인';}
+}
+document.getElementById('btnTransfer').onclick=async()=>{
   const t=now(),rt=TAPS.filter(x=>t-x.t<=10000),win=IMU.filter(x=>t-x.t<=10000);
   const trace=(lastTrace&&t-lastTrace.t<30000)?lastTrace:null;
-  const parts=buildParts(rt,win,trace),r=fuseRisk(parts);
-  renderVerdict(parts,r);
-  if(r.score>=30||flags.mouseSeen)openShake();else finalizeTransfer(true);
+  let decision;
+  try{decision=await postJSON('/api/session/decision',{taps:rt,imu:win,trace,flags});}
+  catch(e){renderServerError(e);return;}
+  renderVerdict(decision);
+  if(decision.payload.requireChallenge)openShake(decision);else finalizeTransfer(true,'서버 승인 — 챌린지 불필요(저위험)');
 };
-function bandOf(s){return s<30?'low':s<60?'mid':'high';}
 function barColor(p){return p<.3?'var(--green)':p<.6?'var(--amber)':'var(--red)';}
 function barsHTML(rows){return rows.map(x=>`<div class="bar ${x.active?'':'off'}"><div class="bl"><span>${x.label} · w${x.w}</span><span>${x.active?(x.p*100).toFixed(0)+'%':'표본부족'}</span></div><div class="track"><div class="fill" style="width:${x.active?x.p*100:0}%;background:${barColor(x.p||0)}"></div></div></div>`).join('');}
-function renderVerdict(parts,r){
-  const band=bandOf(r.score),label=band==='low'?'물리적 현존 확인 — 저위험':band==='mid'?'추가 확인 필요 — 주의':'원격 조작 의심 — 고위험';
-  $('#verdictSlot').innerHTML=`<div class="verdict ${band}"><div class="row"><div><div class="label">${label}</div><div style="font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:4px">신호 커버리지 ${Math.round(r.coverage*100)}% · ${CFG.calibrated?'보정됨':'미보정'}</div></div><div class="score">${r.score}</div></div><div class="bars" style="margin-top:14px">${barsHTML(r.rows)}</div></div>`;
+function renderVerdict(decision){
+  const{payload,rows}=decision,band=payload.band,label=band==='low'?'물리적 현존 확인 — 저위험':band==='mid'?'추가 확인 필요 — 주의':'원격 조작 의심 — 고위험';
+  $('#verdictSlot').innerHTML=`<div class="verdict ${band}"><div class="row"><div><div class="label">${label}</div><div style="font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:4px">신호 커버리지 ${Math.round(payload.coverage*100)}% · <span style="color:var(--cyan)">서버 서명됨</span> (${payload.sessionId.slice(0,8)})</div></div><div class="score">${payload.score}</div></div><div class="bars" style="margin-top:14px">${barsHTML(rows)}</div></div>`;
   $('#verdictSlot').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-function finalizeTransfer(ok){
+function renderServerError(e){
+  $('#verdictSlot').innerHTML=`<div class="verdict high"><div class="label">서버에 연결할 수 없습니다</div><div style="font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:5px">${e.message} — 서버 없이는 이체를 승인할 수 없습니다(안전 기본값: 차단).</div></div>`;
+}
+function finalizeTransfer(ok,note){
   const el=document.createElement('div');el.className='verdict '+(ok?'low':'high');
-  el.innerHTML=`<div class="label">${ok?'✓ 이체 완료 (모의)':'✕ 이체 차단됨'}</div><div style="font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:5px">${ok?'물리적 현존 챌린지 통과':'현존 증명 실패 — 원격 조작 가능성'}</div>`;
+  el.innerHTML=`<div class="label">${ok?'✓ 이체 완료 (모의)':'✕ 이체 차단됨'}</div><div style="font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:5px">${note||(ok?'물리적 현존 챌린지 통과':'현존 증명 실패 — 원격 조작 가능성')}</div>`;
   $('#verdictSlot').prepend(el);
 }
-/* shake */
+/* shake — client only renders progress; the server grades the captured IMU
+   window and issues the final signed authorization. */
 let shakeRAF=null;
-function openShake(){
+function openShake(decision){
   const m=$('#shakeModal');m.classList.add('show');
   const ring=$('#shakeRing'),pct=$('#shakePct'),bar=$('#shakeBar'),timer=$('#shakeTimer');
-  const NEED=CFG.shakeNeed,DUR=4000,start=now();let energy=0,passed=false;
+  const NEED=CFG.shakeNeed,DUR=4000,start=now(),startWall=IMU.length?IMU[IMU.length-1].t:now();
+  let energy=0,settled=false;
   (function frame(){
     const t=now(),left=Math.max(0,DUR-(t-start));let pk=0;for(const s of IMU)if(t-s.t<=400&&s.mag>pk)pk=s.mag;
     bar.style.width=Math.min(100,pk/NEED*100)+'%';if(pk>=NEED)energy++;
-    const prog=Math.min(1,energy/8);pct.textContent=Math.round(prog*100)+'%';
+    const prog=Math.min(1,energy/8);pct.textContent=Math.round(prog*100)+'%(예상)';
     ring.style.borderColor=prog>=1?'var(--green)':pk>=NEED?'var(--cyan)':'var(--line)';timer.textContent=(left/1000).toFixed(1)+'s';
-    if(prog>=1&&!passed){passed=true;pct.textContent='OK';setTimeout(()=>{closeShake();finalizeTransfer(true);},420);return;}
-    if(left<=0){closeShake();finalizeTransfer(false);return;}
+    if((prog>=1||left<=0)&&!settled){settled=true;submitChallenge(decision,startWall);return;}
     shakeRAF=requestAnimationFrame(frame);
   })();
 }
+async function submitChallenge(decision,startWall){
+  const t=now(),imuSamples=IMU.filter(s=>s.t>=startWall).map(s=>({t:s.t,mag:s.mag}));
+  let outcome;
+  try{outcome=await postJSON('/api/session/challenge-result',{token:decision.payload,signature:decision.signature,imuSamples});}
+  catch(e){closeShake();finalizeTransfer(false,'서버 판정 실패: '+e.message);return;}
+  closeShake();
+  finalizeTransfer(outcome.payload.authorized,outcome.payload.authorized?`물리적 현존 챌린지 통과 (서버 판정, peaks=${outcome.payload.energy})`:`현존 증명 실패 — 서버가 차단 (peaks=${outcome.payload.energy})`);
+}
 function closeShake(){if(shakeRAF)cancelAnimationFrame(shakeRAF);$('#shakeModal').classList.remove('show');}
-document.getElementById('btnCancelShake').onclick=()=>{closeShake();finalizeTransfer(false);};
+document.getElementById('btnCancelShake').onclick=()=>{closeShake();finalizeTransfer(false,'사용자 취소');};
+checkServer();
+
+/* ===== L1/L2 link check ===== */
+function verdictPill(v){return `<span class="pill ${v==='low'?'ok':'no'}" style="${v==='high'?'color:var(--red);border-color:#6a2222':''}">${v}</span>`;}
+document.getElementById('btnLinkCheck').onclick=async()=>{
+  const url=$('#linkUrl').value.trim();if(!url)return;
+  const l1box=$('#l1Result'),l2box=$('#l2Result');
+  l1box.innerHTML='<p class="foot">판정 중…</p>';l2box.innerHTML='<p class="foot">헤드리스 브라우저로 렌더링 중… (수 초 소요)</p>';
+  try{
+    const l1=await postJSON('/api/l1/check',{url});
+    l1box.innerHTML=`<div class="readout" style="margin-top:10px"><div class="ro"><span>score</span><b>${l1.score}</b></div><div class="ro"><span>verdict</span><b>${verdictPill(l1.verdict)}</b></div></div>
+      <p class="foot" style="margin-top:8px">brand match: <code>${l1.features?.closestBrand||'—'}</code> (dist ${l1.features?.closestDist??'—'}) · tld <code>${l1.features?.tld||'—'}</code> · punycode ${l1.features?.isPunycode?'yes':'no'} · 화이트리스트 ${l1.features?.isOfficial?'yes':'no'}</p>`;
+  }catch(e){l1box.innerHTML=`<p class="foot" style="color:var(--red)">L1 검사 실패: ${e.message}</p>`;}
+  try{
+    const l2=await postJSON('/api/l2/check',{url});
+    const shot=l2.screenshot?`<img src="data:image/jpeg;base64,${l2.screenshot}" style="width:100%;border-radius:8px;margin-top:10px;border:1px solid var(--line)">`:'';
+    l2box.innerHTML=`<div class="readout" style="margin-top:10px"><div class="ro"><span>score</span><b>${l2.score}</b></div><div class="ro"><span>verdict</span><b>${verdictPill(l2.verdict)}</b></div></div>
+      ${l2.signals?`<p class="foot" style="margin-top:8px">https ${l2.httpsOk?'yes':'no'} · apk 유도 ${l2.signals.apkDownload?'yes':'no'} · 외부앱스킴 ${l2.signals.externalAppScheme?'yes':'no'} · devtools 차단 ${l2.signals.devtoolsBlocked?'yes':'no'} · 과다입력폼 ${l2.signals.overCollectingForm?'yes':'no'} · pw필드 ${l2.signals.passwordFieldCount}</p>`:`<p class="foot" style="color:var(--amber)">${l2.reason||'렌더링 실패'}</p>`}
+      ${shot}`;
+  }catch(e){l2box.innerHTML=`<p class="foot" style="color:var(--red)">L2 검사 실패: ${e.message}</p>`;}
+};
 
 /* ===== lab: oscilloscope ===== */
 const cv=$('#scope'),cx=cv.getContext('2d');
@@ -454,10 +521,12 @@ document.getElementById('btnRec').onclick=function(){
   else{rec.on=false;this.textContent='녹화 시작';this.classList.remove('warn');$('#cState').textContent='ready';$('#btnExport').disabled=rec.imu.length===0;}
 };
 function recFeatures(){const feats=analyzeSession(rec.taps.map(t=>({t:t.t})),rec.imu);const traj=analyzeTrajectory(rec.trace),timing=analyzeTiming(rec.trace);return{imu:feats,trajectory:traj,timing};}
-document.getElementById('btnExport').onclick=()=>{
+document.getElementById('btnExport').onclick=async()=>{
   const payload={meta:{label:rec.label,participant:$('#pid').value||'anon',ua:navigator.userAgent,startedAt:new Date().toISOString(),durationMs:+(rec.imu.length?rec.imu[rec.imu.length-1].t:0).toFixed(0),sampleHz:rateHz,cfg:CFG},features:recFeatures(),taps:rec.taps,trace:rec.trace,imu:rec.imu};
   const blob=new Blob([JSON.stringify(payload)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download=`session_${rec.label}_${payload.meta.participant}_${Date.now()}.json`;a.click();URL.revokeObjectURL(url);
+  try{const r=await postJSON('/api/session/export',payload);$('#cState').textContent=`업로드됨 (총 ${r.totalSessions}건)`;}
+  catch(e){$('#cState').textContent='서버 업로드 실패 (파일은 저장됨)';}
 };
 function snapshot(){const t=now(),rt=TAPS.filter(x=>t-x.t<=15000),win=IMU.filter(x=>t-x.t<=15000);const parts=buildParts(rt,win,lastTrace);return{parts,risk:fuseRisk(parts)};}
 document.getElementById('slotNormal').onclick=()=>{slots.normal=snapshot();renderCmp();};
