@@ -58,6 +58,18 @@ node scripts/eval_l1_model.js   # 인터넷에서 실제 피싱 피드 + 정상 
 평가해 재현율/오탐률을 계산한다. 이 스크립트가 실제로 진짜 버그를 하나
 잡아냈다 — 결과는 `docs/L1_EVAL_REPORT.md` 참고.
 
+## L2 시각 유사도 레퍼런스 재생성
+
+```bash
+cd server
+npm run build:visual
+```
+
+`server/reference-pages/*.html`(직접 만든 은행 로그인 목업)을 렌더링해
+지각적 해시를 `server/data/model/visual-reference.json`에 저장한다.
+목업을 수정했거나, 실제 공식 도메인 스크린샷으로 교체하려면 다시 실행할 것.
+자세한 원리와 검증 결과는 `docs/LIMITATIONS.md` 2번 항목 참고.
+
 ## Vercel 배포
 
 ```bash
@@ -91,21 +103,30 @@ server/
     risk.js      L3 특징 추출 + 융합 (서버 권위 버전)
     l1.js        도메인 어휘 판정
     l2.js        Playwright 랜딩페이지 판정
+    visual.js    L2용 지각적 해시(perceptual hash) 시각 유사도
     sign.js      HMAC 서명/검증 — 클라이언트가 판정을 위조 못 하게
     store.js     수집 세션 파일 저장
   public/
     index.html   클라이언트 (표시 전용, 최종 판단은 서버 응답만 신뢰)
+  reference-pages/
+    bank-login-*.html   L2 시각 유사도용 은행 로그인 목업(직접 제작)
+  scripts/
+    build_visual_reference.js   위 목업을 렌더링해 해시 생성
   test/
     spoof_test.js
   data/
     sessions/    수집된 녹화 (학습 입력)
-    model/weights.json  학습된(또는 기본) 융합 가중치
+    model/
+      weights.json           학습된(또는 기본) 융합 가중치
+      visual-reference.json  L2 시각 유사도 레퍼런스 해시
 scripts/
   train_l3_model.js
+  eval_l1_model.js
 docs/
   LIMITATIONS.md
   SPOOF_TEST_RESULTS.md      (test:spoof 실행 시 생성)
   L3_TRAINING_REPORT.md      (train_l3_model.js 실행 시 생성)
+  L1_EVAL_REPORT.md          (eval_l1_model.js 실행 시 생성)
 ```
 
 ## 신뢰 경계

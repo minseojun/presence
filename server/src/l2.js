@@ -1,10 +1,19 @@
 // L2: dynamic landing-page triage. Renders the URL in an isolated headless
-// browser and scores it on DOM/behavioral signals. NOTE: the visual-similarity
-// leg of the design doc (CLIP/ResNet embedding vs. known bank login screenshots)
-// is NOT implemented here — no embedding model or reference screenshot DB ships
-// in this environment. See docs/LIMITATIONS.md. What *is* real: rendering the
-// page in a sandbox and inspecting the DOM it actually produces.
+// browser and scores it on DOM/behavioral signals plus a lightweight visual-
+// similarity check ("looks like a bank login page but isn't on a bank's
+// domain" — see server/src/visual.js). NOT CLIP/ResNet embeddings (no ML
+// runtime here); the reference images are hand-built generic mockups too,
+// not real bank screenshots, because this environment's network policy
+// blocks reaching real bank domains. See docs/LIMITATIONS.md.
+const fs = require('fs');
+const path = require('path');
 const { OFFICIAL_DOMAINS } = require('./l1');
+const { computeAHash, hammingDistance } = require('./visual');
+
+const VISUAL_REF_PATH = path.join(__dirname, '..', 'data', 'model', 'visual-reference.json');
+const VISUAL_MATCH_THRESHOLD = 40; // out of 256 bits — see visual.js comment for the empirical gap this sits in
+let visualRefs = [];
+try { visualRefs = JSON.parse(fs.readFileSync(VISUAL_REF_PATH, 'utf8')).refs || []; } catch (_) { /* no reference set built yet — visual signal just stays inactive */ }
 
 // Only set CHROME_PATH when Playwright can't find its own browser on its own
 // (e.g. this dev sandbox, which needs an explicit path). Leave it unset
@@ -57,20 +66,34 @@ async function analyzeLandingPage(url, { timeoutMs = 15000 } = {}) {
       ignoreHTTPSErrors: !!PROXY_SERVER
     });
     const page = await context.newPage();
-    const signals = { apkDownload: false, externalAppScheme: false, devtoolsBlocked: false, rightClickBlocked: false, overCollectingForm: false, passwordFieldCount: 0, formFieldCount: 0 };
+    const signals = { apkDownload: false, externalAppScheme: false, devtoolsBlocked: false, rightClickBlocked: false, overCollectingForm: false, passwordFieldCount: 0, formFieldCount: 0, looksLikeBankTemplate: false, visualMatch: null };
 
     page.on('dialog', d => d.dismiss().catch(() => {}));
 
-    let finalUrl = url, httpsOk = false, screenshot = null;
+    let finalUrl = url, httpsOk = false, screenshot = null, screenshotBuf = null;
     try {
       const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
       finalUrl = page.url();
       httpsOk = finalUrl.startsWith('https://');
       await page.waitForTimeout(800); // let redirect chains / injected overlays settle
-      screenshot = (await page.screenshot({ type: 'jpeg', quality: 60 })).toString('base64');
+      screenshotBuf = await page.screenshot({ type: 'jpeg', quality: 60 });
+      screenshot = screenshotBuf.toString('base64');
     } catch (e) {
       await browser.close();
       return { score: 40, verdict: 'mid', reason: `render-failed:${e.message.slice(0, 120)}`, signals: null, screenshot: null, finalUrl };
+    }
+
+    if (screenshotBuf && visualRefs.length) {
+      try {
+        const pageHash = await computeAHash(screenshotBuf);
+        let best = null;
+        for (const ref of visualRefs) {
+          const d = hammingDistance(pageHash, ref.hash);
+          if (!best || d < best.distance) best = { name: ref.name, distance: d };
+        }
+        signals.visualMatch = best;
+        signals.looksLikeBankTemplate = best.distance <= VISUAL_MATCH_THRESHOLD;
+      } catch (_) { /* image decode failure — leave visual signal inactive rather than fail the whole check */ }
     }
 
     const html = await page.content().catch(() => '');
@@ -95,6 +118,10 @@ async function analyzeLandingPage(url, { timeoutMs = 15000 } = {}) {
     if (signals.externalAppScheme) score += 25;
     if (signals.devtoolsBlocked) score += 15;
     if (signals.overCollectingForm) score += 35;
+    // The core L2 idea: a page that visually matches a bank-login template
+    // but isn't hosted on that bank's actual domain is exactly the pattern
+    // typosquat/clone phishing produces.
+    if (signals.looksLikeBankTemplate && !whitelisted) score += 40;
     if (whitelisted) score = 0;
     score = Math.min(100, score);
     const verdict = score >= 60 ? 'high' : score >= 30 ? 'mid' : 'low';

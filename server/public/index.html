@@ -533,7 +533,7 @@ async function runLinkCheck(url){
   try{
     const l2=await postJSON('/api/l2/check',{url});
     l2verdict=l2.verdict;
-    if(l2.signals)tags.push(...[l2.signals.apkDownload&&'앱 설치 유도',l2.signals.externalAppScheme&&'외부 앱 실행 시도',l2.signals.devtoolsBlocked&&'개발자도구 차단',l2.signals.overCollectingForm&&'과도한 개인정보 요구',!l2.httpsOk&&'HTTPS 미사용'].filter(Boolean));
+    if(l2.signals)tags.push(...[l2.signals.looksLikeBankTemplate&&'은행 로그인 화면과 시각적으로 유사',l2.signals.apkDownload&&'앱 설치 유도',l2.signals.externalAppScheme&&'외부 앱 실행 시도',l2.signals.devtoolsBlocked&&'개발자도구 차단',l2.signals.overCollectingForm&&'과도한 개인정보 요구',!l2.httpsOk&&'HTTPS 미사용'].filter(Boolean));
   }catch(e){/* network-restricted or render failure — judged on L1 alone */}
   const verdicts=[l1verdict,l2verdict].filter(Boolean);
   const worst=verdicts.includes('high')?'high':verdicts.includes('mid')?'mid':'low';
