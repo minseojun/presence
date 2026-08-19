@@ -1,0 +1,17 @@
+{
+  "name": "presence-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PRESENCE server-side risk decision service (L1 domain, L2 landing page, L3/L4 session integrity)",
+  "type": "commonjs",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "test:spoof": "node test/spoof_test.js",
+    "train": "node ../scripts/train_l3_model.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "playwright": "^1.56.1"
+  }
+}
