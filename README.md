@@ -48,6 +48,16 @@ node scripts/train_l3_model.js --synthetic  # 파이프라인 배관 점검용 (
 `docs/L3_TRAINING_REPORT.md`와 `server/data/model/weights.json`(서버가 재시작
 없이 바로 읽음)에 기록된다.
 
+## L1 실데이터 평가
+
+```bash
+node scripts/eval_l1_model.js   # 인터넷에서 실제 피싱 피드 + 정상 도메인 목록을 매번 새로 받아옴
+```
+
+`server/src/l1.js`를 실제 피싱 피드(~39만 건)와 실제 상위 도메인(1만 건)으로
+평가해 재현율/오탐률을 계산한다. 이 스크립트가 실제로 진짜 버그를 하나
+잡아냈다 — 결과는 `docs/L1_EVAL_REPORT.md` 참고.
+
 ## Vercel 배포
 
 ```bash

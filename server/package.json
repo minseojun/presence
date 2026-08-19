@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node src/app.js",
     "test:spoof": "node test/spoof_test.js",
-    "train": "node ../scripts/train_l3_model.js"
+    "train": "node ../scripts/train_l3_model.js",
+    "eval:l1": "node ../scripts/eval_l1_model.js"
   },
   "dependencies": {
     "@sparticuz/chromium": "^131.0.1",
