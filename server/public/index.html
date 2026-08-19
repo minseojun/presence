@@ -6,57 +6,58 @@
 <title>PRESENCE — 세션 무결성 검증</title>
 <style>
   :root{
-    --bg:#0a0e14;--panel:#111822;--panel2:#0d141d;--line:#1d2836;
-    --ink:#cdd8e8;--mut:#6b7c93;--dim:#43526a;
-    --cyan:#34d3ee;--violet:#8b7bff;--green:#37d07f;--amber:#ffb347;--red:#ff5c5c;
+    --bg:#f5f6f8;--panel:#ffffff;--panel2:#f0f1f4;--line:#e3e5ea;
+    --ink:#16181d;--mut:#6b7280;--dim:#9aa1ac;
+    --cyan:#0891b2;--cyan-ink:#ffffff;--violet:#7c6ff0;--green:#16a34a;--amber:#c2760a;--red:#dc2626;
+    --green-bg:#f0fdf4;--green-line:#bbf0cd;--amber-bg:#fffaeb;--amber-line:#fbdf9c;--red-bg:#fef2f2;--red-line:#f8c9c9;
     --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Roboto Mono",monospace;
     --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;overscroll-behavior:none}
   body{max-width:520px;margin:0 auto;min-height:100vh;padding-bottom:72px}
-  header{padding:14px 16px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:linear-gradient(180deg,var(--bg),rgba(10,14,20,.86));backdrop-filter:blur(6px);z-index:10}
+  header{padding:14px 16px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(245,246,248,.9);backdrop-filter:blur(8px);z-index:10}
   .brand{display:flex;align-items:baseline;gap:9px}
-  .brand h1{font-size:16px;letter-spacing:.28em;margin:0;font-weight:700}
+  .brand h1{font-size:16px;letter-spacing:.2em;margin:0;font-weight:800}
   .brand .v{font-family:var(--mono);font-size:10px;color:var(--dim)}
-  .tag{margin:3px 0 0;font-size:11px;color:var(--mut)}
+  .tag{margin:3px 0 0;font-size:11.5px;color:var(--mut)}
   .status{display:flex;gap:8px;margin-top:10px;font-family:var(--mono);font-size:10.5px}
-  .chip{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:6px 8px;display:flex;flex-direction:column;gap:2px}
-  .chip b{color:var(--ink);font-size:13px}
-  .chip span{color:var(--mut);text-transform:uppercase;letter-spacing:.09em;font-size:8.5px}
+  .chip{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:2px}
+  .chip b{color:var(--ink);font-size:13px;font-weight:600}
+  .chip span{color:var(--mut);text-transform:uppercase;letter-spacing:.07em;font-size:8.5px}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);display:inline-block;vertical-align:middle;margin-right:4px}
-  .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
-  .dot.err{background:var(--red);box-shadow:0 0 8px var(--red)}
+  .dot.on{background:var(--green);box-shadow:0 0 5px var(--green)}
+  .dot.err{background:var(--red);box-shadow:0 0 5px var(--red)}
   main{padding:14px 16px}
-  .view{display:none}.view.active{display:block;animation:fade .25s ease}
+  .view{display:none}.view.active{display:block;animation:fade .2s ease}
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
-  .card h2{margin:0 0 4px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
-  .lead{font-size:12.5px;color:var(--mut);line-height:1.55;margin:0 0 12px}
-  label.f{display:block;font-size:11px;color:var(--mut);margin:12px 0 5px;letter-spacing:.05em}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(20,20,30,.03)}
+  .card h2{margin:0 0 6px;font-size:13px;font-weight:700;color:var(--ink)}
+  .lead{font-size:12.5px;color:var(--mut);line-height:1.5;margin:0 0 10px}
+  label.f{display:block;font-size:11px;color:var(--mut);margin:12px 0 5px;letter-spacing:.03em}
   input.t{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--ink);font-family:var(--mono);font-size:15px;padding:11px 12px;outline:none}
   input.t:focus{border-color:var(--cyan)}
   .amt{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap}
   .amt button{flex:1;min-width:70px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 4px;font-family:var(--mono);font-size:12px}
   .amt button:active{border-color:var(--cyan)}
-  .btn{width:100%;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;margin-top:16px;color:#04121a;background:var(--cyan)}
-  .btn:active{filter:brightness(.9)}
-  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);font-weight:600}
-  .btn.warn{background:var(--amber);color:#22160a}
+  .btn{width:100%;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;margin-top:16px;color:var(--cyan-ink);background:var(--cyan)}
+  .btn:active{filter:brightness(.92)}
+  .btn.ghost{background:var(--panel);border:1px solid var(--line);color:var(--ink);font-weight:600}
+  .btn.warn{background:var(--amber);color:#fff}
   .btn.sm{padding:10px;font-size:13px;margin-top:8px}
   .btn[disabled]{opacity:.4}
-  .scope-wrap{background:#060a0f;border:1px solid var(--line);border-radius:10px;padding:8px 8px 4px}
+  .scope-wrap{background:#12161d;border:1px solid var(--line);border-radius:10px;padding:8px 8px 4px}
   canvas{width:100%;display:block;border-radius:6px;touch-action:none}
-  .legend{display:flex;gap:12px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:var(--mut);padding:6px 4px 2px}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:#8b93a3;padding:6px 4px 2px}
   .legend i{width:16px;height:2px;display:inline-block;vertical-align:middle;margin-right:5px;border-radius:2px}
   .readout{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;font-family:var(--mono)}
   .ro{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 10px}
-  .ro span{font-size:8.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.09em;display:block}
+  .ro span{font-size:8.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.07em;display:block}
   .ro b{font-size:18px}
-  .verdict{border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid}
-  .verdict.low{border-color:#1c5a3c;background:#0c1c16}
-  .verdict.mid{border-color:#6a4d18;background:#1c150a}
-  .verdict.high{border-color:#6a2222;background:#1c0d0d}
+  .verdict{border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid}
+  .verdict.low{border-color:var(--green-line);background:var(--green-bg)}
+  .verdict.mid{border-color:var(--amber-line);background:var(--amber-bg)}
+  .verdict.high{border-color:var(--red-line);background:var(--red-bg)}
   .verdict .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .verdict .score{font-family:var(--mono);font-size:34px;font-weight:700;line-height:1}
   .verdict.low .score{color:var(--green)}.verdict.mid .score{color:var(--amber)}.verdict.high .score{color:var(--red)}
@@ -69,31 +70,31 @@
   .bar.off{opacity:.4}
   .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;overflow:hidden;margin:8px 0}
   .seg button{flex:1;background:transparent;border:none;color:var(--mut);padding:9px;font-size:12px;font-family:var(--mono)}
-  .seg button.on{background:var(--cyan);color:#04121a;font-weight:700}
+  .seg button.on{background:var(--cyan);color:#fff;font-weight:700}
   .rec-stat{display:flex;gap:8px;margin-top:12px;font-family:var(--mono)}
   .rec-stat .ro{flex:1;text-align:center}
   table.cmp{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px;margin-top:6px}
   table.cmp th,table.cmp td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:right}
   table.cmp th:first-child,table.cmp td:first-child{text-align:left;color:var(--mut)}
   table.cmp .g{color:var(--green)}table.cmp .r{color:var(--red)}
-  .modal{position:fixed;inset:0;background:rgba(4,7,11,.9);display:none;align-items:center;justify-content:center;z-index:50;padding:24px;backdrop-filter:blur(3px)}
+  .modal{position:fixed;inset:0;background:rgba(20,22,28,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:24px;backdrop-filter:blur(2px)}
   .modal.show{display:flex}
-  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;width:100%;max-width:360px;text-align:center}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;width:100%;max-width:360px;text-align:center;box-shadow:0 8px 30px rgba(20,20,30,.12)}
   .sheet h3{margin:0 0 6px;font-size:17px}
-  .sheet p{margin:0 0 14px;font-size:12.5px;color:var(--mut);line-height:1.55}
+  .sheet p{margin:0 0 14px;font-size:12.5px;color:var(--mut);line-height:1.5}
   .ring{width:132px;height:132px;margin:6px auto 14px;border-radius:50%;border:3px solid var(--line);display:flex;align-items:center;justify-content:center;position:relative;transition:.1s;user-select:none}
   .ring b{font-family:var(--mono);font-size:26px}
   .ring small{position:absolute;bottom:20px;font-family:var(--mono);font-size:9px;color:var(--mut);letter-spacing:.1em}
   .meter{height:8px;background:var(--panel2);border-radius:5px;overflow:hidden;margin:0 0 6px}
   .meter i{display:block;height:100%;width:0;background:var(--cyan);transition:width .08s}
-  nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:var(--panel2);border-top:1px solid var(--line)}
+  nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:var(--panel);border-top:1px solid var(--line)}
   nav button{flex:1;background:none;border:none;color:var(--mut);padding:11px 0 14px;font-size:11px}
   nav button.on{color:var(--cyan)}
   nav button .ic{display:block;font-size:16px;margin-bottom:2px}
-  .foot{font-size:10.5px;color:var(--dim);line-height:1.6;padding:2px 2px 8px}
+  .foot{font-size:10.5px;color:var(--dim);line-height:1.5;padding:2px 2px 8px}
   .pill{display:inline-block;font-family:var(--mono);font-size:9.5px;padding:2px 7px;border-radius:20px;border:1px solid var(--line);color:var(--mut)}
-  .pill.ok{color:var(--green);border-color:#1c5a3c}
-  .pill.no{color:var(--amber);border-color:#6a4d18}
+  .pill.ok{color:var(--green);border-color:var(--green-line);background:var(--green-bg)}
+  .pill.no{color:var(--amber);border-color:var(--amber-line);background:var(--amber-bg)}
   code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:4px;color:var(--cyan);font-size:11px}
 </style>
 </head>
@@ -102,42 +103,43 @@
   <div class="brand"><h1>PRESENCE</h1><span class="v">session integrity · L3·L4</span></div>
   <p class="tag">이 세션을 사람이 직접 조작하는가, 원격으로 조종당하는가</p>
   <div class="status">
-    <div class="chip"><span>sensor</span><b id="sRate"><i class="dot" id="sDot"></i>off</b></div>
-    <div class="chip"><span>calibration</span><b id="sCal">미보정</b></div>
-    <div class="chip"><span>risk (local)</span><b id="sRisk">—</b></div>
-    <div class="chip"><span>server</span><b id="sSrv"><i class="dot" id="srvDot"></i>확인중</b></div>
+    <div class="chip"><span>센서</span><b id="sRate"><i class="dot" id="sDot"></i>꺼짐</b></div>
+    <div class="chip"><span>보정</span><b id="sCal">안 됨</b></div>
+    <div class="chip"><span>위험도</span><b id="sRisk">—</b></div>
+    <div class="chip"><span>서버</span><b id="sSrv"><i class="dot" id="srvDot"></i>확인중</b></div>
   </div>
 </header>
 <main>
   <!-- 링크검사 (L1/L2) -->
   <section class="view" id="v-link">
     <div class="card">
-      <h2>L1 · 도메인 정적 판정</h2>
-      <p class="lead">브랜드 유사도, 신규/의심 TLD, punycode, 단축 URL 등 어휘 특징만으로 판정합니다. 화이트리스트에 있는 공식 도메인은 즉시 저위험 처리됩니다.</p>
+      <h2>URL 검사</h2>
+      <p class="lead">도메인과 실제 렌더링된 페이지를 함께 확인합니다.</p>
       <label class="f">URL</label>
       <input class="t" id="linkUrl" placeholder="https://kb-bank-secure.tk/login" value="https://kb-bank-secure.tk/login">
-      <button class="btn" id="btnLinkCheck">L1 + L2 검사</button>
+      <button class="btn" id="btnLinkCheck">검사하기</button>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom:10px">① 도메인</h2>
       <div id="l1Result"></div>
     </div>
     <div class="card">
-      <h2>L2 · 랜딩페이지 동적 판정</h2>
-      <p class="lead">격리된 헤드리스 브라우저로 실제 페이지를 렌더링해 DOM 신호(APK 유도, 외부 앱 스킴, 개발자도구 차단, 과도한 입력 필드 요구)를 검사합니다. <b>주의</b>: 실제 URL을 렌더링하므로 신뢰할 수 없는 링크는 이 서버가 격리 환경에서 접속합니다 — 진짜 피싱 URL을 넣지 마세요, 데모/자체 페이지로만 테스트하세요.</p>
+      <h2 style="margin-bottom:10px">② 페이지 렌더링</h2>
+      <p class="foot" style="margin:-4px 0 10px">신뢰할 수 없는 진짜 피싱 URL은 넣지 마세요 — 데모 페이지로만 테스트</p>
       <div id="l2Result"></div>
     </div>
-    <p class="foot">시각 임베딩(CLIP) 유사도 비교는 이 환경엔 없습니다 — <code>docs/LIMITATIONS.md</code> 참고. 지금은 DOM·URL 휴리스틱까지가 실제 동작하는 범위입니다.</p>
   </section>
   <!-- 데모 -->
   <section class="view active" id="v-demo">
     <div class="card" id="startCard">
       <h2>센서 연결</h2>
-      <p class="lead">가속도계·자이로 접근을 허용해야 검증이 동작합니다. 안드로이드 크롬 · HTTPS 환경에서 테스트하세요.</p>
+      <p class="lead">동작 센서 권한을 허용해야 검증이 시작됩니다.</p>
       <button class="btn" id="btnStart">센서 시작</button>
       <button class="btn ghost sm" id="btnCal" disabled>기준 보정 (권장)</button>
       <p class="foot" id="startHint"></p>
     </div>
     <div class="card">
       <h2>모의 이체</h2>
-      <p class="lead">실제 은행 흐름을 흉내 낸 화면입니다. 조작 중의 터치가 IMU와 상관되는지 백그라운드에서 계속 측정합니다.</p>
       <label class="f">받는 분 계좌</label>
       <input class="t" id="acct" inputmode="numeric" value="110-482-771903">
       <label class="f">이체 금액</label>
@@ -149,35 +151,34 @@
       <button class="btn" id="btnTransfer">이체하기</button>
     </div>
     <div id="verdictSlot"></div>
-    <p class="foot">데모 — ① 폰을 손에 들고 버튼을 눌러 이체 → <b>통과</b>. ② PC에서 <code>scrcpy</code>로 같은 폰을 원격 조작 → 화면입력은 들어가나 폰 정지 → <b>고위험 차단</b>. 궤적·타이밍 신호는 <b>검증랩</b> 탭에서 손끝으로 직접 확인하세요. 최종 승인/차단은 항상 <b>서버가 서명</b>합니다 — 클라이언트 콘솔 조작으로는 우회되지 않습니다.</p>
+    <p class="foot">폰을 들고 조작하면 통과, PC로 원격 조작하면(scrcpy 등) 차단됩니다. 판정은 서버가 서명해 내려줍니다.</p>
   </section>
   <!-- 검증랩 -->
   <section class="view" id="v-lab">
     <div class="card">
       <h2>① 터치–IMU 오실로스코프</h2>
-      <p class="lead">화면을 두드리면 터치 순간마다 임펄스가 잡히는지 실시간으로 보입니다. 정합되면 <b style="color:var(--green)">초록</b>, 폰 정지(원격)면 <b style="color:var(--red)">빨강</b>.</p>
+      <p class="lead">화면을 두드려 보세요. 두드릴 때마다 <b style="color:var(--green)">초록</b>(정합) 또는 <b style="color:var(--red)">빨강</b>(미정합)이 표시됩니다.</p>
       <div class="scope-wrap"><canvas id="scope" height="300"></canvas>
         <div class="legend"><span><i style="background:var(--cyan)"></i>|a|</span><span><i style="background:var(--violet)"></i>|ω|</span><span><i style="background:var(--green)"></i>정합</span><span><i style="background:var(--red)"></i>미정합</span></div>
       </div>
       <div class="readout">
-        <div class="ro"><span>impulse ratio</span><b id="lRatio">—</b></div>
-        <div class="ro"><span>sample rate</span><b id="lRate">—</b></div>
+        <div class="ro"><span>임펄스 비율</span><b id="lRatio">—</b></div>
+        <div class="ro"><span>샘플레이트</span><b id="lRate">—</b></div>
       </div>
     </div>
     <div class="card">
-      <h2>② 궤적 기하 · 이벤트 타이밍</h2>
-      <p class="lead">아래 판에서 <b>한 점에서 다른 점으로 천천히 드래그</b>하세요. 사람 손은 곡선을 그리고 목표 근처에서 미세 보정을 합니다(피츠의 법칙). 원격 커서는 직선적이고 규칙적입니다.</p>
+      <h2>② 궤적 · 타이밍</h2>
+      <p class="lead">점에서 점으로 천천히 드래그해 보세요. 사람 손은 곡선을 그리고, 원격 커서는 직선적입니다.</p>
       <div class="scope-wrap"><canvas id="pad" height="240"></canvas></div>
       <div class="readout">
-        <div class="ro"><span>straightness</span><b id="tStr">—</b></div>
-        <div class="ro"><span>submovements</span><b id="tSub">—</b></div>
-        <div class="ro"><span>move rate</span><b id="tRate">—</b></div>
-        <div class="ro"><span>interval cv</span><b id="tCv">—</b></div>
+        <div class="ro"><span>직선도</span><b id="tStr">—</b></div>
+        <div class="ro"><span>보정 횟수</span><b id="tSub">—</b></div>
+        <div class="ro"><span>이동 속도</span><b id="tRate">—</b></div>
+        <div class="ro"><span>간격 변동성</span><b id="tCv">—</b></div>
       </div>
     </div>
     <div class="card">
-      <h2>③ 융합 위험도</h2>
-      <p class="lead">네 신호를 가중 융합합니다. 위조가 어려운 물리 신호에 무게를 둡니다.</p>
+      <h2>③ 종합 위험도</h2>
       <div id="labBars" class="bars"></div>
       <button class="btn ghost sm" id="btnClear">버퍼 초기화</button>
     </div>
@@ -185,26 +186,23 @@
   <!-- 수집 -->
   <section class="view" id="v-collect">
     <div class="card">
-      <h2>세션 데이터 수집</h2>
-      <p class="lead">L3 학습 데이터를 직접 만드는 도구입니다. 본인·동의한 참여자 대상, 자체 모의 화면에서만 수집하세요.</p>
+      <h2>세션 녹화</h2>
       <label class="f">라벨</label>
       <div class="seg" id="segLabel"><button data-l="normal" class="on">정상 (손)</button><button data-l="remote">원격 (scrcpy)</button></div>
       <label class="f">참여자 ID</label>
       <input class="t" id="pid" placeholder="p01">
-      <div class="rec-stat"><div class="ro"><span>state</span><b id="cState">idle</b></div><div class="ro"><span>imu</span><b id="cImu">0</b></div><div class="ro"><span>taps</span><b id="cTaps">0</b></div></div>
+      <div class="rec-stat"><div class="ro"><span>상태</span><b id="cState">대기</b></div><div class="ro"><span>IMU</span><b id="cImu">0</b></div><div class="ro"><span>탭 수</span><b id="cTaps">0</b></div></div>
       <button class="btn" id="btnRec">녹화 시작</button>
       <button class="btn ghost sm" id="btnExport" disabled>JSON 내보내기</button>
     </div>
     <div class="card">
-      <h2>평가 · 층별 비교 (ablation)</h2>
-      <p class="lead">마지막 녹화를 슬롯에 저장해 정상 vs 원격을 나란히 비교합니다. 각 신호가 판정에 얼마나 기여하는지 숫자로 보여줍니다.</p>
+      <h2>정상 vs 원격 비교</h2>
       <div style="display:flex;gap:8px">
         <button class="btn ghost sm" id="slotNormal" style="margin-top:0">정상 슬롯 저장</button>
         <button class="btn ghost sm" id="slotRemote" style="margin-top:0">원격 슬롯 저장</button>
       </div>
       <div id="cmpSlot"></div>
     </div>
-    <p class="foot">스키마: <code>{meta, taps[], trace[], imu[], features}</code> — LightGBM/1D-CNN 입력으로 바로 사용.</p>
   </section>
 </main>
 
@@ -449,23 +447,28 @@ document.getElementById('btnCancelShake').onclick=()=>{closeShake();finalizeTran
 checkServer();
 
 /* ===== L1/L2 link check ===== */
-function verdictPill(v){return `<span class="pill ${v==='low'?'ok':'no'}" style="${v==='high'?'color:var(--red);border-color:#6a2222':''}">${v}</span>`;}
+function verdictPill(v){const label={low:'저위험',mid:'주의',high:'고위험'}[v]||v;return `<span class="pill ${v==='low'?'ok':'no'}" style="${v==='high'?'color:var(--red);border-color:var(--red-line);background:var(--red-bg)':''}">${label}</span>`;}
 document.getElementById('btnLinkCheck').onclick=async()=>{
   const url=$('#linkUrl').value.trim();if(!url)return;
   const l1box=$('#l1Result'),l2box=$('#l2Result');
-  l1box.innerHTML='<p class="foot">판정 중…</p>';l2box.innerHTML='<p class="foot">헤드리스 브라우저로 렌더링 중… (수 초 소요)</p>';
+  l1box.innerHTML='<p class="foot">검사 중…</p>';l2box.innerHTML='<p class="foot">페이지 렌더링 중…</p>';
+  const flagPill=on=>on?'<span class="pill no">주의</span>':'';
   try{
     const l1=await postJSON('/api/l1/check',{url});
-    l1box.innerHTML=`<div class="readout" style="margin-top:10px"><div class="ro"><span>score</span><b>${l1.score}</b></div><div class="ro"><span>verdict</span><b>${verdictPill(l1.verdict)}</b></div></div>
-      <p class="foot" style="margin-top:8px">brand match: <code>${l1.features?.closestBrand||'—'}</code> (dist ${l1.features?.closestDist??'—'}) · tld <code>${l1.features?.tld||'—'}</code> · punycode ${l1.features?.isPunycode?'yes':'no'} · 화이트리스트 ${l1.features?.isOfficial?'yes':'no'}</p>`;
-  }catch(e){l1box.innerHTML=`<p class="foot" style="color:var(--red)">L1 검사 실패: ${e.message}</p>`;}
+    const f=l1.features||{};
+    const tags=[f.isOfficial&&'공식 도메인',f.brandLookalike&&'브랜드 유사',f.brandPlusGenericWord&&'브랜드+의심 단어',f.isPunycode&&'punycode',f.isSuspiciousTld&&'의심 TLD',f.isShortener&&'단축 URL',f.isIp&&'IP 주소'].filter(Boolean);
+    l1box.innerHTML=`<div class="readout"><div class="ro"><span>점수</span><b>${l1.score}</b></div><div class="ro"><span>판정</span><b>${verdictPill(l1.verdict)}</b></div></div>
+      ${tags.length?`<p class="foot" style="margin-top:8px">${tags.join(' · ')}</p>`:''}`;
+  }catch(e){l1box.innerHTML=`<p class="foot" style="color:var(--red)">검사 실패: ${e.message}</p>`;}
   try{
     const l2=await postJSON('/api/l2/check',{url});
     const shot=l2.screenshot?`<img src="data:image/jpeg;base64,${l2.screenshot}" style="width:100%;border-radius:8px;margin-top:10px;border:1px solid var(--line)">`:'';
-    l2box.innerHTML=`<div class="readout" style="margin-top:10px"><div class="ro"><span>score</span><b>${l2.score}</b></div><div class="ro"><span>verdict</span><b>${verdictPill(l2.verdict)}</b></div></div>
-      ${l2.signals?`<p class="foot" style="margin-top:8px">https ${l2.httpsOk?'yes':'no'} · apk 유도 ${l2.signals.apkDownload?'yes':'no'} · 외부앱스킴 ${l2.signals.externalAppScheme?'yes':'no'} · devtools 차단 ${l2.signals.devtoolsBlocked?'yes':'no'} · 과다입력폼 ${l2.signals.overCollectingForm?'yes':'no'} · pw필드 ${l2.signals.passwordFieldCount}</p>`:`<p class="foot" style="color:var(--amber)">${l2.reason||'렌더링 실패'}</p>`}
+    const s=l2.signals;
+    const tags=s?[s.apkDownload&&'APK 다운로드 유도',s.externalAppScheme&&'외부 앱 실행',s.devtoolsBlocked&&'개발자도구 차단',s.overCollectingForm&&'과도한 정보 요구',!l2.httpsOk&&'HTTPS 아님'].filter(Boolean):[];
+    l2box.innerHTML=`<div class="readout"><div class="ro"><span>점수</span><b>${l2.score}</b></div><div class="ro"><span>판정</span><b>${verdictPill(l2.verdict)}</b></div></div>
+      ${tags.length?`<p class="foot" style="margin-top:8px">${tags.join(' · ')}</p>`:s?'':`<p class="foot" style="color:var(--amber)">페이지를 불러오지 못했습니다.</p>`}
       ${shot}`;
-  }catch(e){l2box.innerHTML=`<p class="foot" style="color:var(--red)">L2 검사 실패: ${e.message}</p>`;}
+  }catch(e){l2box.innerHTML=`<p class="foot" style="color:var(--red)">검사 실패: ${e.message}</p>`;}
 };
 
 /* ===== lab: oscilloscope ===== */
@@ -517,8 +520,8 @@ document.getElementById('btnClear').onclick=()=>{IMU.length=0;TAPS.length=0;flag
 /* ===== collect ===== */
 document.querySelectorAll('#segLabel button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#segLabel button').forEach(x=>x.classList.remove('on'));b.classList.add('on');rec.label=b.dataset.l;});
 document.getElementById('btnRec').onclick=function(){
-  if(!rec.on){rec.on=true;rec.imu=[];rec.taps=[];rec.trace=[];rec.t0=now();this.textContent='녹화 정지';this.classList.add('warn');$('#cState').textContent='REC';$('#btnExport').disabled=true;}
-  else{rec.on=false;this.textContent='녹화 시작';this.classList.remove('warn');$('#cState').textContent='ready';$('#btnExport').disabled=rec.imu.length===0;}
+  if(!rec.on){rec.on=true;rec.imu=[];rec.taps=[];rec.trace=[];rec.t0=now();this.textContent='녹화 정지';this.classList.add('warn');$('#cState').textContent='녹화중';$('#btnExport').disabled=true;}
+  else{rec.on=false;this.textContent='녹화 시작';this.classList.remove('warn');$('#cState').textContent='완료';$('#btnExport').disabled=rec.imu.length===0;}
 };
 function recFeatures(){const feats=analyzeSession(rec.taps.map(t=>({t:t.t})),rec.imu);const traj=analyzeTrajectory(rec.trace),timing=analyzeTiming(rec.trace);return{imu:feats,trajectory:traj,timing};}
 document.getElementById('btnExport').onclick=async()=>{
@@ -546,8 +549,8 @@ function renderCmp(){
 function loop(){
   const dot=$('#sDot');
   if(sensorOn&&now()-lastMotionT<1500)$('#sRate').innerHTML=`<i class="dot on"></i>${rateHz||0} Hz`;
-  else if(sensorOn)$('#sRate').innerHTML=`<i class="dot err"></i>no data`;
-  else $('#sRate').innerHTML=`<i class="dot"></i>off`;
+  else if(sensorOn)$('#sRate').innerHTML=`<i class="dot err"></i>신호없음`;
+  else $('#sRate').innerHTML=`<i class="dot"></i>꺼짐`;
   const t=now(),rt=TAPS.filter(s=>t-s.t<=10000),win=IMU.filter(s=>t-s.t<=10000);
   const parts=buildParts(rt,win,(lastTrace&&t-lastTrace.t<30000)?lastTrace:null),r=fuseRisk(parts);
   $('#sRisk').textContent=(rt.length||lastTrace)?r.score:'—';
