@@ -12,7 +12,12 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const DECISION_TTL_MS = 60_000;
-const SHAKE_NEED = 13; // must match client visual, but the server is now the judge
+// Real Android Chrome devicemotion readings for an actual light-to-moderate
+// hand shake mostly land in the ~5-10 m/s^2 range (gravity already excluded
+// by e.acceleration). 13 was too high — a "gentle shake" per the UI copy
+// rarely cleared it, so the challenge failed even when the user complied.
+const SHAKE_NEED = 7;
+const SHAKE_HITS_REQUIRED = 4; // was 8 — same reasoning, must match client visual
 
 // ---- L1: static link triage ----
 app.post('/api/l1/check', (req, res) => {
@@ -64,7 +69,7 @@ app.post('/api/session/challenge-result', (req, res) => {
 
   let energy = 0;
   for (const s of imuSamples) if ((s.mag || 0) >= SHAKE_NEED) energy++;
-  const authorized = energy >= 8; // matches client's visual "8 strong peaks" bar, now graded server-side
+  const authorized = energy >= SHAKE_HITS_REQUIRED;
 
   const outcome = { sessionId: token.sessionId, authorized, energy, iat: Date.now() };
   res.json(signDecision(outcome));

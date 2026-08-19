@@ -239,7 +239,7 @@ const stdev=a=>{const m=mean(a);return Math.sqrt(mean(a.map(x=>(x-m)**2)));};
 const dist=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y);
 
 /* ===== calibratable config ===== */
-const CFG={zTh:3.5,minPeakAbs:0.35,gZ:4.0,gMinAbs:6.0,shakeNeed:13,calibrated:false,weak:false};
+const CFG={zTh:3.5,minPeakAbs:0.35,gZ:4.0,gMinAbs:6.0,shakeNeed:7,shakeHits:4,calibrated:false,weak:false};
 
 /* ===== L3 signal 1: touch–IMU impulse ===== */
 function analyzeSession(taps,imu,o={}){
@@ -428,7 +428,7 @@ function openShake(decision){
   (function frame(){
     const t=now(),left=Math.max(0,DUR-(t-start));let pk=0;for(const s of IMU)if(t-s.t<=400&&s.mag>pk)pk=s.mag;
     bar.style.width=Math.min(100,pk/NEED*100)+'%';if(pk>=NEED)energy++;
-    const prog=Math.min(1,energy/8);pct.textContent=Math.round(prog*100)+'%(예상)';
+    const prog=Math.min(1,energy/CFG.shakeHits);pct.textContent=Math.round(prog*100)+'%(예상)';
     ring.style.borderColor=prog>=1?'var(--green)':pk>=NEED?'var(--cyan)':'var(--line)';timer.textContent=(left/1000).toFixed(1)+'s';
     if((prog>=1||left<=0)&&!settled){settled=true;submitChallenge(decision,startWall);return;}
     shakeRAF=requestAnimationFrame(frame);
