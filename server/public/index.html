@@ -320,6 +320,7 @@
 <script>
 /* ===== stats ===== */
 function median(a){const b=[...a].sort((x,y)=>x-y),n=b.length;return n?(n%2?b[(n-1)/2]:(b[n/2-1]+b[n/2])/2):0;}
+function percentile(a,p){const b=[...a].sort((x,y)=>x-y);return b[Math.floor(p*(b.length-1))];}
 function mad(a,m){return median(a.map(x=>Math.abs(x-m)));}
 const mean=a=>a.reduce((s,x)=>s+x,0)/(a.length||1);
 const stdev=a=>{const m=mean(a);return Math.sqrt(mean(a.map(x=>(x-m)**2)));};
@@ -457,9 +458,19 @@ async function startSensors(){
    for another, exactly like the shake threshold did across Android/iPhone.
    Instead of guessing a new constant, quietly calibrate from this session's
    own real taps: once a handful of taps already clear the z-score bar on
-   their own (relative to that tap's own recent baseline), use their median
-   delta to set the absolute floor — no separate calibration screen needed,
-   it converges within the first few natural taps of the actual flow. */
+   their own (relative to that tap's own recent baseline), use their delta
+   to set the absolute floor — no separate calibration screen needed, it
+   converges within the first few natural taps of the actual flow.
+
+   Validated against 13 real recordings (iPhone, desk + handheld, see
+   scripts/import_real_export.js): the first version used median*0.5 over
+   only 5 samples, which on a couple of real sessions overshot — a lucky
+   run of strong early taps pushed the floor UP past what later, genuinely
+   real but softer taps could clear, making detection *worse* than the flat
+   default on that session. Switched to 20th-percentile*0.4 — same 5-sample
+   convergence speed, but on the same 13 sessions it never regressed a
+   single one (some improved, several stayed flat), because the low
+   percentile targets the weakest confirmed tap instead of the typical one. */
 const autoCal={deltas:[],done:false};
 function tryAutoCalibrate(t){
   if(CFG.calibrated||autoCal.done)return;
@@ -471,8 +482,8 @@ function tryAutoCalibrate(t){
   if(delta/rstd<CFG.zTh)return;
   autoCal.deltas.push(delta);
   if(autoCal.deltas.length>=5){
-    const md=median(autoCal.deltas);
-    CFG.minPeakAbs=Math.max(0.05,+(0.5*md).toFixed(2));CFG.calibrated=true;CFG.weak=md<0.15;autoCal.done=true;
+    const p20=percentile(autoCal.deltas,0.2);
+    CFG.minPeakAbs=Math.max(0.05,+(0.4*p20).toFixed(2));CFG.calibrated=true;CFG.weak=p20<0.15;autoCal.done=true;
     const cal=document.getElementById('sCal');if(cal)cal.textContent='자동보정됨';
   }
 }
