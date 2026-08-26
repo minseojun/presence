@@ -94,6 +94,53 @@ async function scenarioC_directApiForgery() {
   return r.json();
 }
 
+async function getSignedHighRiskDecision() {
+  // reuse scenario C's shape (a real endpoint call, no browser needed) to get
+  // a validly-signed token to attach challenge-result calls to
+  const now = Date.now();
+  const taps = Array.from({ length: 4 }, (_, i) => ({ t: now + i * 300, x: 100 + i, y: 200 }));
+  const imu = taps.flatMap(() => []); // flat/no IMU -> high risk, same as scenario A's premise
+  const r = await fetch(`${BASE}/api/session/decision`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taps, imu, trace: null, flags: {} }) });
+  return r.json();
+}
+
+async function callChallengeResult(decision, imuSamples, baselineSamples) {
+  const r = await fetch(`${BASE}/api/session/challenge-result`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: decision.payload, signature: decision.signature, imuSamples, baselineSamples }) });
+  return r.json();
+}
+
+async function scenarioE_vehicleSingleBump(decision) {
+  // Real bug report: sitting in a car (a common voice-phishing scenario — the
+  // victim is often on the phone WHILE being driven) hitting one speed bump
+  // used to authorize the transfer with zero deliberate shaking. At 60Hz
+  // sampling a single ~150ms jolt alone contains 6-9 samples clearing the
+  // magnitude threshold, which used to satisfy "3 qualifying samples"
+  // outright. Fixed by requiring temporally-separated bursts, not raw count.
+  const baselineSamples = Array.from({ length: 30 }, (_, i) => ({ t: decision.payload.iat - 2000 + i * 60, mag: 1.8 + Math.random() * 0.6 }));
+  const imuSamples = [];
+  let t = decision.payload.iat;
+  for (let i = 0; i < 40; i++) { imuSamples.push({ t, mag: 1.8 + Math.random() * 0.6 }); t += 60; }
+  for (let i = 0; i < 9; i++) { imuSamples.push({ t, mag: 9 + Math.random() }); t += 16; } // one bump, ~150ms
+  for (let i = 0; i < 40; i++) { imuSamples.push({ t, mag: 1.8 + Math.random() * 0.6 }); t += 60; }
+  return callChallengeResult(decision, imuSamples, baselineSamples);
+}
+
+async function scenarioF_bumpyRoadThreeBumps(decision) {
+  // Known residual gap, documented rather than hidden: a genuinely rough
+  // road producing 3+ well-separated large bumps within the 4s window still
+  // authorizes, because each bump is a distinct burst and the fix only
+  // collapses samples *within* one burst. Closing this needs a frequency-
+  // domain shake signature (2-6Hz oscillation), not implemented here.
+  const baselineSamples = Array.from({ length: 30 }, (_, i) => ({ t: decision.payload.iat - 2000 + i * 60, mag: 1.8 + Math.random() * 0.6 }));
+  const imuSamples = [];
+  let t = decision.payload.iat;
+  for (let rep = 0; rep < 3; rep++) {
+    for (let i = 0; i < 20; i++) { imuSamples.push({ t, mag: 1.8 + Math.random() * 0.6 }); t += 60; }
+    for (let i = 0; i < 9; i++) { imuSamples.push({ t, mag: 9 + Math.random() }); t += 16; }
+  }
+  return callChallengeResult(decision, imuSamples, baselineSamples);
+}
+
 async function scenarioD_forgedChallengeResult(highRiskDecision) {
   // Take a genuinely HIGH-risk signed decision and try to forge it into a
   // pass: flip score/band/requireChallenge to look low-risk while replaying
@@ -124,6 +171,10 @@ async function scenarioD_forgedChallengeResult(highRiskDecision) {
   results.C_directApiForgery = await scenarioC_directApiForgery();
   results.D_forgedChallengeResult = await scenarioD_forgedChallengeResult(results.A_realTapsNoMotion);
 
+  const challengeDecision = await getSignedHighRiskDecision();
+  results.E_vehicleSingleBump = await scenarioE_vehicleSingleBump(challengeDecision);
+  results.F_bumpyRoadThreeBumps = await scenarioF_bumpyRoadThreeBumps(challengeDecision);
+
   const verdictOf = d => `score=${d.payload.score} band=${d.payload.band} requireChallenge=${d.payload.requireChallenge}`;
 
   const lines = [];
@@ -149,6 +200,18 @@ async function scenarioD_forgedChallengeResult(highRiskDecision) {
   lines.push(results.D_forgedChallengeResult.status === 401
     ? '**PASS** — HMAC signature check rejected the tampered payload; token integrity holds.\n'
     : '**FAIL** — tampered token was accepted; signing is broken.\n');
+
+  lines.push('## E. Vehicle single-bump — one ~150ms speed-bump burst during the shake challenge (regression test for a real bug report)');
+  lines.push('```\n' + JSON.stringify(results.E_vehicleSingleBump) + '\n```');
+  lines.push(results.E_vehicleSingleBump.payload.authorized === false
+    ? '**PASS** — a single momentary jolt (e.g. a car hitting one speed bump while the victim is being socially engineered mid-drive) is correctly rejected. Fixed by requiring temporally-separated *bursts* of qualifying samples (gap > 150ms starts a new burst) instead of a raw qualifying-sample count, which a single ~150ms jolt could satisfy outright at 60Hz sampling.\n'
+    : '**FAIL (regression)** — a single vehicle bump alone authorized the transfer again.\n');
+
+  lines.push('## F. Bumpy road, three separated bumps — known residual gap (documented, not fixed)');
+  lines.push('```\n' + JSON.stringify(results.F_bumpyRoadThreeBumps) + '\n```');
+  lines.push(results.F_bumpyRoadThreeBumps.payload.authorized === true
+    ? '**KNOWN GAP** — a genuinely rough road producing 3+ well-separated large bumps within the challenge window still authorizes, since each bump is its own burst and burst-counting alone cannot tell "3 deliberate shakes" from "3 distinct road bumps". Closing this fully needs frequency-domain shake-signature analysis (a real hand shake oscillates ~2-6Hz with alternating direction; a bump is a single-direction impulse) — not implemented here for lack of real calibration data to validate against, consistent with this project\'s policy of not guessing new physical-sensor constants. Tracked in docs/LIMITATIONS.md.\n'
+    : '**Improved beyond expectation** — this run rejected the multi-bump pattern too (not guaranteed by the current fix; treat as incidental, not relied upon).\n');
 
   const out = lines.join('\n');
   console.log(out);

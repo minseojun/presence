@@ -629,17 +629,21 @@ function openShake(decision){
   const restBase=Math.max(0.1,median(baselineSamples.map(s=>s.mag)));
   const NEED=Math.max(restBase*4,restBase+3);
   let settled=false;
+  const BURST_GAP_MS=150;
   (function frame(){
     const t=now(),left=Math.max(0,DUR-(t-start));
     let pk=0;for(const s of IMU)if(t-s.t<=400&&s.mag>pk)pk=s.mag;
     bar.style.width=Math.min(100,pk/NEED*100)+'%';
-    // count DISTINCT qualifying samples since the window opened — same metric
-    // the server uses. Counting "frames where the recent peak clears NEED"
-    // instead (a single strong sample stays the rolling-window max across
-    // ~24 frames at 60fps) made the client's own progress bar hit 100% off
-    // of just one real sample, well before the server saw enough of them.
-    const energy=IMU.filter(s=>s.t>=startWall&&s.mag>=NEED).length;
-    const prog=Math.min(1,energy/CFG.shakeHits);pct.textContent=Math.round(prog*100)+'%(예상)';
+    // count temporally-separated BURSTS since the window opened, not raw
+    // qualifying samples — a real report: a car speed bump produced one
+    // ~150ms jolt that alone contains 6-9 qualifying samples at 60Hz,
+    // clearing the old sample-count check with zero deliberate shaking.
+    // A genuine shake is repeated back-and-forth motion spread across the
+    // window; counting distinct bursts (samples >=150ms apart start a new
+    // one) matches what the server now enforces authoritatively.
+    const qualifyingTimes=IMU.filter(s=>s.t>=startWall&&s.mag>=NEED).map(s=>s.t).sort((a,b)=>a-b);
+    let bursts=0,lastT=-Infinity;for(const qt of qualifyingTimes){if(qt-lastT>BURST_GAP_MS)bursts++;lastT=qt;}
+    const prog=Math.min(1,bursts/CFG.shakeHits);pct.textContent=Math.round(prog*100)+'%(예상)';
     ring.style.borderColor=prog>=1?'var(--green)':pk>=NEED?'var(--cyan)':'var(--line)';timer.textContent=(left/1000).toFixed(1)+'s';
     if((prog>=1||left<=0)&&!settled){settled=true;submitChallenge(decision,startWall,baselineSamples);return;}
     shakeRAF=requestAnimationFrame(frame);

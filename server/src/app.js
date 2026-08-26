@@ -74,17 +74,30 @@ app.post('/api/session/challenge-result', (req, res) => {
   // same samples being judged — otherwise a vigorous, sustained shake that
   // dominates the judged window drags its own "ambient" median up and
   // silently raises the bar against itself.
-  const mags = imuSamples.map(s => s.mag || 0);
-  const baseSource = baselineSamples.length ? baselineSamples.map(s => s.mag || 0) : mags;
+  const baseSource = baselineSamples.length ? baselineSamples.map(s => s.mag || 0) : imuSamples.map(s => s.mag || 0);
   const base = risk.median(baseSource);
   // needs a real spike: 4x the ambient floor, with a minimum absolute jump
   // so a near-zero baseline (phone dead still) doesn't make everything count
   const relativeThreshold = Math.max(base * 4, base + 3);
-  let energy = 0;
-  for (const m of mags) if (m >= relativeThreshold) energy++;
-  const authorized = mags.length > 0 && energy >= SHAKE_HITS_REQUIRED;
 
-  const outcome = { sessionId: token.sessionId, authorized, energy, threshold: +relativeThreshold.toFixed(2), iat: Date.now() };
+  // Reported bug: a car on a rough road (or a single speed bump) produces one
+  // short burst of samples that all clear a magnitude threshold at once —
+  // 60Hz sampling turns one ~150ms bump into 9+ "qualifying" samples, which
+  // used to satisfy SHAKE_HITS_REQUIRED=3 outright with zero deliberate
+  // shaking. A real human shake is repeated back-and-forth motion spread
+  // over the window, not one instant — so count temporally-separated BURSTS
+  // (samples >=150ms apart start a new burst) instead of raw sample count.
+  // This is exactly the scenario the reporter hit: sitting in a moving car
+  // while being socially engineered into a transfer is a common real
+  // voice-phishing pattern, so ambient vehicle vibration defeating the
+  // physical-presence check is a real bypass, not just a UX nuisance.
+  const BURST_GAP_MS = 150;
+  const qualifyingTimes = imuSamples.filter(s => (s.mag || 0) >= relativeThreshold).map(s => s.t).sort((a, b) => a - b);
+  let bursts = 0, lastT = -Infinity;
+  for (const t of qualifyingTimes) { if (t - lastT > BURST_GAP_MS) bursts++; lastT = t; }
+  const authorized = imuSamples.length > 0 && bursts >= SHAKE_HITS_REQUIRED;
+
+  const outcome = { sessionId: token.sessionId, authorized, energy: bursts, threshold: +relativeThreshold.toFixed(2), iat: Date.now() };
   res.json(signDecision(outcome));
 });
 
