@@ -10,6 +10,7 @@ const { saveSession, listSessions } = require('./store');
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.get('/demo', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'demo.html')));
 
 const DECISION_TTL_MS = 60_000;
 // Absolute m/s^2 thresholds (13, then 7) were both guesses tuned against one
@@ -44,10 +45,7 @@ app.post('/api/l2/check', async (req, res) => {
 // Client sends RAW telemetry only. Score, thresholds and the pass/challenge/
 // block decision are computed here — a compromised client can send fake
 // telemetry, but it can no longer forge the verdict itself.
-app.post('/api/session/decision', (req, res) => {
-  const { taps = [], imu = [], trace = null, flags = {} } = req.body || {};
-  if (!Array.isArray(taps) || !Array.isArray(imu)) return res.status(400).json({ error: 'taps[] and imu[] required' });
-
+function computeDecision(taps, imu, trace, flags) {
   const parts = risk.buildParts(taps, imu, trace, flags);
   const result = risk.fuseRisk(parts);
   const band = result.score < 30 ? 'low' : result.score < 60 ? 'mid' : 'high';
@@ -55,8 +53,28 @@ app.post('/api/session/decision', (req, res) => {
 
   const sessionId = crypto.randomUUID();
   const payload = { sessionId, score: result.score, band, requireChallenge, coverage: result.coverage, iat: Date.now(), exp: Date.now() + DECISION_TTL_MS };
-  const signed = signDecision(payload);
-  res.json({ ...signed, rows: result.rows });
+  return { signed: signDecision(payload), rows: result.rows, imuMeta: parts.imu.meta };
+}
+
+app.post('/api/session/decision', (req, res) => {
+  const { taps = [], imu = [], trace = null, flags = {} } = req.body || {};
+  if (!Array.isArray(taps) || !Array.isArray(imu)) return res.status(400).json({ error: 'taps[] and imu[] required' });
+  const { signed, rows } = computeDecision(taps, imu, trace, flags);
+  res.json({ ...signed, rows });
+});
+
+// ---- Judge/demo dashboard: identical decision math, extra debug detail ----
+// Same computeDecision() as production — the token it signs is accepted by
+// the real /api/session/challenge-result below unchanged. The only addition
+// is `debug.imu`, the real per-tap impulse trace from analyzeSession(), so
+// server/public/demo.html can chart the actual signal instead of a fabricated
+// number. Kept as a separate route so the production decision endpoint's
+// response shape never changes.
+app.post('/api/demo/decision', (req, res) => {
+  const { taps = [], imu = [], trace = null, flags = {} } = req.body || {};
+  if (!Array.isArray(taps) || !Array.isArray(imu)) return res.status(400).json({ error: 'taps[] and imu[] required' });
+  const { signed, rows, imuMeta } = computeDecision(taps, imu, trace, flags);
+  res.json({ ...signed, rows, debug: { imu: imuMeta || null } });
 });
 
 // ---- L4: physical-presence challenge, judged server-side ----
