@@ -139,6 +139,13 @@
       <div class="sms-body">[Web발신]<br>고객님 명의로 비정상 로그인이 감지되었습니다. 본인확인이 필요합니다.</div>
       <input class="t" id="introUrl" style="font-size:13px" value="https://kb-bank-secure.tk/login">
     </div>
+    <div class="card">
+      <h2>🤖 AI 문자 분석</h2>
+      <p class="lead">L1(링크 판정)이 URL을 보기 전에, 문자 <b>내용</b> 자체를 Claude가 사기 분석가처럼 읽고 설명합니다. 아래 텍스트를 직접 받은 의심 문자로 바꿔서 테스트해도 됩니다.</p>
+      <textarea class="t" id="aiText" rows="3" style="resize:vertical;font-family:var(--sans);line-height:1.5">[Web발신] 고객님 명의로 비정상 로그인이 감지되었습니다. 본인확인이 필요합니다. 아래 링크에서 즉시 확인해주세요.</textarea>
+      <button class="btn ghost sm" id="btnAiAnalyze">AI로 분석하기</button>
+      <div id="aiResult" style="display:none;margin-top:10px"></div>
+    </div>
     <button class="btn" id="btnOpenLink">링크 열기</button>
     <p class="foot">데모용 — URL을 정상 도메인으로 바꿔서도 테스트할 수 있습니다.</p>
   </section>
@@ -525,6 +532,33 @@ checkServer();
 /* ===================== narrative flow ===================== */
 const SCREENS=['intro','checking','blocked','transfer','confirm','result'];
 function showScreen(id){SCREENS.forEach(s=>$('#s-'+s).classList.toggle('active',s===id));window.scrollTo(0,0);}
+
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+document.getElementById('btnAiAnalyze').onclick=async()=>{
+  const text=$('#aiText').value.trim();
+  const btn=$('#btnAiAnalyze'),box=$('#aiResult');
+  if(!text)return;
+  btn.disabled=true;btn.textContent='분석 중…';
+  box.style.display='block';box.innerHTML='<p class="foot">Claude에 분석 요청 중…</p>';
+  try{
+    const r=await fetch('/api/l0/analyze-message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    const d=await r.json();
+    if(!r.ok||d.error){
+      box.innerHTML=`<p class="foot" style="color:var(--amber)">${escapeHtml(d.message||'AI 분석을 사용할 수 없습니다.')}</p>`;
+    }else{
+      const band=d.riskScore>=60?'high':d.riskScore>=30?'mid':'low';
+      const label=d.riskScore>=60?'높은 위험':d.riskScore>=30?'주의':'낮은 위험';
+      const flags=(d.redFlags||[]).map(f=>`<li>${escapeHtml(f)}</li>`).join('');
+      box.innerHTML=`<div class="verdict ${band}" style="margin-bottom:0"><div class="row"><div class="label">${label}</div><div class="score">${d.riskScore}</div></div>
+        <p style="font-size:12.5px;margin:8px 0 0;color:var(--mut);line-height:1.5">${escapeHtml(d.explanation||'')}</p>
+        ${flags?`<ul style="margin:8px 0 0;padding-left:18px;font-size:12px;color:var(--mut)">${flags}</ul>`:''}
+        <p class="foot" style="margin:8px 0 0">model: ${escapeHtml(d.model||'')}</p></div>`;
+    }
+  }catch(e){
+    box.innerHTML='<p class="foot" style="color:var(--red)">분석 요청 실패 — 네트워크 오류</p>';
+  }
+  btn.disabled=false;btn.textContent='AI로 분석하기';
+};
 
 document.getElementById('btnOpenLink').onclick=async()=>{
   await startSensors(); // this click doubles as the iOS permission gesture

@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const risk = require('./risk');
+const { analyzeMessageWithClaude } = require('./l0');
 const { scoreDomain } = require('./l1');
 const { analyzeLandingPage } = require('./l2');
 const { signDecision, verifyDecision } = require('./sign');
@@ -21,6 +22,21 @@ const DECISION_TTL_MS = 60_000;
 // above the ambient noise floor; a still phone (or a phone that was never
 // picked up) never produces that gap regardless of its absolute scale.
 const SHAKE_HITS_REQUIRED = 3;
+
+// ---- L0: AI-based message/call-script triage (real LLM call, not a heuristic) ----
+app.post('/api/l0/analyze-message', async (req, res) => {
+  const { text } = req.body || {};
+  if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text required' });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return res.status(501).json({ error: 'not-configured', message: 'AI 문자 분석을 쓰려면 서버에 ANTHROPIC_API_KEY 환경변수가 필요합니다 (README 참고). 나머지 기능(L1~L4)은 이 설정 없이도 정상 동작합니다.' });
+  }
+  try {
+    res.json(await analyzeMessageWithClaude(text, apiKey));
+  } catch (e) {
+    res.status(502).json({ error: 'ai-request-failed', message: e.message });
+  }
+});
 
 // ---- L1: static link triage ----
 app.post('/api/l1/check', (req, res) => {
