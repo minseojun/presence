@@ -67,6 +67,36 @@ node scripts/eval_l1_model.js   # 인터넷에서 실제 피싱 피드 + 정상 
 평가해 재현율/오탐률을 계산한다. 이 스크립트가 실제로 진짜 버그를 하나
 잡아냈다 — 결과는 `docs/L1_EVAL_REPORT.md` 참고.
 
+```bash
+node scripts/train_l1_model.js   # 위와 같은 실제 데이터로 진짜 로지스틱 회귀를 학습
+```
+
+`server/data/model/l1-weights.json`에 학습된 가중치를 저장하고, 서버는
+재시작 없이 다음 요청부터 바로 읽는다(휴리스틱 점수와 `max()`로 앙상블 —
+휴리스틱이 이미 잡던 걸 놓치게 만들 수는 없다). 학습 리포트는
+`docs/L1_ML_TRAINING_REPORT.md`, 결합된 시스템의 실측 재현율/오탐률은
+다시 `npm run eval:l1`로 확인. 자세한 트레이드오프(재현율은 크게 올랐지만
+새로운 오탐 패턴도 같이 생김)는 `docs/LIMITATIONS.md` 3번 항목 참고.
+
+## AI 문자 분석 (L0, Claude API)
+
+문자 미끼 화면에 있는 "🤖 AI 문자 분석" 카드는 URL이 아니라 문자/통화
+스크립트 **텍스트 내용**을 Claude에게 분석시켜 사회공학적 패턴을 한국어로
+설명해준다(`server/src/l0.js`, `POST /api/l0/analyze-message`). 이 기능만
+`ANTHROPIC_API_KEY` 환경변수가 필요하다:
+
+```bash
+cd server
+ANTHROPIC_API_KEY=sk-ant-... npm start
+```
+
+Vercel이면 프로젝트 설정의 Environment Variables에 `ANTHROPIC_API_KEY`를
+추가할 것. **키가 없으면** 이 카드는 502가 아니라 명확한 안내 메시지를
+보여주고, 나머지 L1~L4는 전혀 영향받지 않는다 — 서버 권위 판정(이체
+차단/승인)의 일부가 아니라 사용자에게 보여주는 보조 설명 기능이기
+때문이다. 프롬프트 인젝션 완화, 대규모 평가 부재 등 정직한 한계는
+`docs/LIMITATIONS.md` 15번 항목 참고.
+
 ## L2 시각 유사도 레퍼런스 재생성
 
 ```bash
@@ -108,15 +138,17 @@ vercel             # 저장소 루트에서 실행, 로그인 후 안내대로
 ```
 server/
   src/
-    app.js       Express 진입점 — /api/l1, /api/l2, /api/session/*
+    app.js       Express 진입점 — /api/l0, /api/l1, /api/l2, /api/session/*, /api/demo/*
     risk.js      L3 특징 추출 + 융합 (서버 권위 버전)
-    l1.js        도메인 어휘 판정
+    l0.js        AI 문자/통화 분석 (Claude API 호출, ANTHROPIC_API_KEY 필요)
+    l1.js        도메인 어휘 판정 + 학습된 로지스틱 회귀 앙상블
     l2.js        Playwright 랜딩페이지 판정
     visual.js    L2용 지각적 해시(perceptual hash) 시각 유사도
     sign.js      HMAC 서명/검증 — 클라이언트가 판정을 위조 못 하게
     store.js     수집 세션 파일 저장
   public/
     index.html   클라이언트 (표시 전용, 최종 판단은 서버 응답만 신뢰)
+    demo.html    심사용 L3/L4 인터랙티브 대시보드 (/demo)
   reference-pages/
     bank-login-*.html   L2 시각 유사도용 은행 로그인 목업(직접 제작)
   scripts/
@@ -126,16 +158,19 @@ server/
   data/
     sessions/    수집된 녹화 (학습 입력)
     model/
-      weights.json           학습된(또는 기본) 융합 가중치
+      weights.json           학습된(또는 기본) L3 융합 가중치
+      l1-weights.json        학습된 L1 로지스틱 회귀 가중치 (train_l1_model.js 실행 시 생성)
       visual-reference.json  L2 시각 유사도 레퍼런스 해시
 scripts/
   train_l3_model.js
   eval_l1_model.js
+  train_l1_model.js
 docs/
   LIMITATIONS.md
   SPOOF_TEST_RESULTS.md      (test:spoof 실행 시 생성)
   L3_TRAINING_REPORT.md      (train_l3_model.js 실행 시 생성)
   L1_EVAL_REPORT.md          (eval_l1_model.js 실행 시 생성)
+  L1_ML_TRAINING_REPORT.md   (train_l1_model.js 실행 시 생성)
 ```
 
 ## 신뢰 경계

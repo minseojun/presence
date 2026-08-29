@@ -1,8 +1,15 @@
 // L1: static link/domain triage. Purely lexical/offline — no WHOIS or
-// certificate-transparency lookups yet (see docs/LIMITATIONS.md). This is a
-// deliberately simple, explainable scorer meant to be replaced by the
-// character-CNN / LightGBM model once PhishTank / OpenPhish / Tranco data is
-// wired in; the feature set below is what that model would consume.
+// certificate-transparency lookups yet (see docs/LIMITATIONS.md).
+//
+// Two scorers run per domain: a hand-tuned heuristic (below, unchanged
+// behavior — every consumer that depended on its exact thresholds keeps
+// working) and, if `scripts/train_l1_model.js` has been run, a real logistic
+// regression trained on ~400k labeled real domains (docs/L1_ML_TRAINING_REPORT.md).
+// The returned score is the max of the two (an OR-of-detectors ensemble —
+// either one flagging is enough), so training the ML model can only ever
+// catch more, never silently suppress what the heuristic already caught.
+const fs = require('fs');
+const path = require('path');
 
 const BRANDS = [
   'kbstar', 'kbcard', 'kb', 'shinhan', 'wooribank', 'woori', 'hanabank', 'hana',
@@ -27,6 +34,27 @@ function levenshtein(a, b) {
     dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
   }
   return dp[a.length][b.length];
+}
+
+const ML_WEIGHTS_PATH = path.join(__dirname, '..', 'data', 'model', 'l1-weights.json');
+let mlModel = null;
+try { mlModel = JSON.parse(fs.readFileSync(ML_WEIGHTS_PATH, 'utf8')); } catch (_) { /* not trained yet — heuristic-only until scripts/train_l1_model.js runs */ }
+
+// Fixed feature order the trained model expects — must match scripts/train_l1_model.js.
+const ML_FEATURE_NAMES = ['isIp', 'isPunycode', 'isShortener', 'isSuspiciousTld', 'brandLookalike', 'brandSubstring', 'brandPlusGenericWord', 'subdomainDepth', 'hyphenCount', 'digitRatio', 'hostEntropy', 'closestDistCapped', 'hostLenNorm'];
+function mlFeatureVector(f) {
+  return [
+    f.isIp ? 1 : 0, f.isPunycode ? 1 : 0, f.isShortener ? 1 : 0, f.isSuspiciousTld ? 1 : 0,
+    f.brandLookalike ? 1 : 0, f.brandSubstring ? 1 : 0, f.brandPlusGenericWord ? 1 : 0,
+    Math.min(5, f.subdomainDepth), Math.min(5, f.hyphenCount), f.digitRatio, f.hostEntropy,
+    Math.min(5, f.closestDist == null ? 5 : f.closestDist), Math.min(1, f.host.length / 40)
+  ];
+}
+function mlScoreOf(f) {
+  if (!mlModel) return null;
+  const x = mlFeatureVector(f);
+  const z = mlModel.b + x.reduce((s, xi, i) => s + xi * mlModel.w[i], 0);
+  return Math.round(100 / (1 + Math.exp(-z)));
 }
 
 function entropy(s) {
@@ -91,24 +119,27 @@ function scoreDomain(rawUrl) {
     digitRatio: +digitRatio.toFixed(2), hostEntropy: +hostEntropy.toFixed(2)
   };
 
-  if (isOfficial) return { score: 0, verdict: 'low', reason: 'official-domain', features };
+  if (isOfficial) return { score: 0, verdict: 'low', reason: 'official-domain', features, mlScore: 0 };
 
-  let score = 0;
-  if (isIp) score += 30;
-  if (isPunycode) score += 25;
-  if (isShortener) score += 20;
-  if (isSuspiciousTld) score += 15;
-  if (brandLookalike) score += 45;
-  if (brandSubstring && !brandLookalike) score += 25;
-  if (brandPlusGenericWord) score += 25; // e.g. kb-bank-secure.tk — brand token + banking-flavored word
-  if (subdomainDepth >= 3) score += 15;
-  if (hyphenCount >= 2) score += 10;
-  if (digitRatio > 0.3) score += 10;
-  if (hostEntropy > 3.8) score += 10;
-  score = Math.min(100, score);
+  let heuristicScore = 0;
+  if (isIp) heuristicScore += 30;
+  if (isPunycode) heuristicScore += 25;
+  if (isShortener) heuristicScore += 20;
+  if (isSuspiciousTld) heuristicScore += 15;
+  if (brandLookalike) heuristicScore += 45;
+  if (brandSubstring && !brandLookalike) heuristicScore += 25;
+  if (brandPlusGenericWord) heuristicScore += 25; // e.g. kb-bank-secure.tk — brand token + banking-flavored word
+  if (subdomainDepth >= 3) heuristicScore += 15;
+  if (hyphenCount >= 2) heuristicScore += 10;
+  if (digitRatio > 0.3) heuristicScore += 10;
+  if (hostEntropy > 3.8) heuristicScore += 10;
+  heuristicScore = Math.min(100, heuristicScore);
+
+  const mlScore = mlScoreOf(features);
+  const score = mlScore == null ? heuristicScore : Math.max(heuristicScore, mlScore);
 
   const verdict = score >= 60 ? 'high' : score >= 30 ? 'mid' : 'low';
-  return { score, verdict, features };
+  return { score, heuristicScore, mlScore, verdict, features };
 }
 
-module.exports = { scoreDomain, OFFICIAL_DOMAINS, BRANDS };
+module.exports = { scoreDomain, OFFICIAL_DOMAINS, BRANDS, ML_FEATURE_NAMES, mlFeatureVector };

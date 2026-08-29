@@ -10,6 +10,7 @@
     "test:spoof": "node test/spoof_test.js",
     "train": "node ../scripts/train_l3_model.js",
     "eval:l1": "node ../scripts/eval_l1_model.js",
+    "train:l1": "node ../scripts/train_l1_model.js",
     "build:visual": "node scripts/build_visual_reference.js",
     "import:real": "node ../scripts/import_real_export.js",
     "validate:autocal": "node ../scripts/validate_autocalibration.js"

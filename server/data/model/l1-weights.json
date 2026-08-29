@@ -1,0 +1,36 @@
+{
+  "w": [
+    0.06293795015777669,
+    0.00008648813053885628,
+    -0.002368321088760875,
+    1.0901826483490813,
+    -0.0004086865082432182,
+    -0.013983208312563566,
+    0.0042553293041535205,
+    2.2723133196725676,
+    1.1407690079476036,
+    0.6918702862440639,
+    1.2153112604482454,
+    -0.18807903199767445,
+    1.161538516064221
+  ],
+  "b": -6.339860790278027,
+  "features": [
+    "isIp",
+    "isPunycode",
+    "isShortener",
+    "isSuspiciousTld",
+    "brandLookalike",
+    "brandSubstring",
+    "brandPlusGenericWord",
+    "subdomainDepth",
+    "hyphenCount",
+    "digitRatio",
+    "hostEntropy",
+    "closestDistCapped",
+    "hostLenNorm"
+  ],
+  "trainedAt": "2026-08-27T14:28:00.609Z",
+  "nTrain": 16000,
+  "nTest": 4000
+}
