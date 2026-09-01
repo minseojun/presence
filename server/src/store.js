@@ -67,4 +67,24 @@ async function listSessions() {
   return fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'));
 }
 
-module.exports = { saveSession, listSessions, SESSIONS_DIR, useBlob, BLOB_ACCESS };
+// Filenames are server-generated (makeId()), but this still accepts a
+// caller-supplied id (from a URL param) — reject anything that isn't a
+// plain "<label>_<participant>_<timestamp>.json" segment before touching
+// the filesystem or Blob, so a crafted id can't path-traverse or address a
+// different Blob prefix.
+const SAFE_ID = /^[A-Za-z0-9_.-]+\.json$/;
+
+async function getSession(filename) {
+  if (!SAFE_ID.test(filename)) return null;
+  if (useBlob) {
+    const { get } = require('@vercel/blob');
+    const result = await withTimeout(get(`${BLOB_PREFIX}${filename}`, { access: BLOB_ACCESS }), 'get');
+    if (!result?.stream) return null;
+    return JSON.parse(await new Response(result.stream).text());
+  }
+  const file = path.join(SESSIONS_DIR, filename);
+  if (!fs.existsSync(file)) return null;
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+module.exports = { saveSession, listSessions, getSession, SESSIONS_DIR, useBlob, BLOB_ACCESS };

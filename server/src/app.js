@@ -7,7 +7,7 @@ const { scoreDomain } = require('./l1');
 const { analyzeLandingPage } = require('./l2');
 const { signDecision, verifyDecision } = require('./sign');
 const store = require('./store');
-const { saveSession, listSessions } = store;
+const { saveSession, listSessions, getSession } = store;
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
@@ -153,6 +153,28 @@ app.post('/api/session/export', async (req, res) => {
     res.json({ id, stored: true, totalSessions: (await listSessions()).length });
   } catch (e) {
     res.status(502).json({ error: 'save-failed', message: '세션 저장에 실패했습니다: ' + e.message + ' (파일은 이미 다운로드됐습니다).' });
+  }
+});
+
+// ---- L3 data collection: browse + compare stored sessions in the browser ----
+// Lets a non-technical user compare two already-uploaded recordings (e.g. one
+// "정상", one "원격 조작") straight from the deployed page — no local clone,
+// no CLI, no token handling. Read-only; reuses the same storage backend as
+// the export endpoint above (local fs or Vercel Blob).
+app.get('/api/session/list', async (req, res) => {
+  try {
+    res.json({ sessions: await listSessions() });
+  } catch (e) {
+    res.status(502).json({ error: 'list-failed', message: e.message });
+  }
+});
+app.get('/api/session/:id', async (req, res) => {
+  try {
+    const record = await getSession(req.params.id);
+    if (!record) return res.status(404).json({ error: 'not-found' });
+    res.json(record);
+  } catch (e) {
+    res.status(502).json({ error: 'read-failed', message: e.message });
   }
 });
 
