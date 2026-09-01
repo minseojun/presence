@@ -816,8 +816,12 @@ document.getElementById('btnExport').onclick=async()=>{
   const payload={meta:{label:rec.label,participant:$('#pid').value||'anon',ua:navigator.userAgent,startedAt:new Date().toISOString(),durationMs:+(rec.imu.length?rec.imu[rec.imu.length-1].t:0).toFixed(0),sampleHz:rateHz,cfg:CFG},features:recFeatures(),taps:rec.taps,trace:rec.trace,imu:rec.imu};
   const blob=new Blob([JSON.stringify(payload)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download=`session_${rec.label}_${payload.meta.participant}_${Date.now()}.json`;a.click();URL.revokeObjectURL(url);
-  try{const r=await postJSON('/api/session/export',payload);$('#cState').textContent=`업로드됨 (총 ${r.totalSessions}건)`;}
-  catch(e){$('#cState').textContent='서버 업로드 실패 (파일은 저장됨)';}
+  try{
+    const r=await fetch('/api/session/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)$('#cState').textContent='업로드 실패: '+(d.message||d.error||('HTTP '+r.status))+' (파일은 로컬에 저장됨)';
+    else $('#cState').textContent=`업로드됨 (총 ${d.totalSessions}건)`;
+  }catch(e){$('#cState').textContent='업로드 실패: 서버에 연결할 수 없습니다 (파일은 로컬에 저장됨) — '+e.message;}
 };
 function snapshot(){const t=now(),rt=TAPS.filter(x=>t-x.t<=15000),win=IMU.filter(x=>t-x.t<=15000);const parts=buildParts(rt,win,lastTrace);return{parts,risk:fuseRisk(parts)};}
 document.getElementById('slotNormal').onclick=()=>{slots.normal=snapshot();renderCmp();};
