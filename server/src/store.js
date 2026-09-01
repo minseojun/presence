@@ -16,6 +16,16 @@ try { fs.mkdirSync(SESSIONS_DIR, { recursive: true }); } catch (_) {}
 const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
 const BLOB_PREFIX = 'sessions/';
 const BLOB_TIMEOUT_MS = 10_000;
+// Vercel Blob stores are created as either Public or Private (chosen once,
+// in the dashboard, when the store is created) and every put()/get() call
+// must match that store's mode exactly — 'public' against a Private store
+// errors with "cannot use public access on a private store". There's no way
+// to introspect which mode a store is from the token alone, so this is
+// configurable rather than guessed; 'private' is the default since a
+// Vercel-dashboard-created store defaults to Private and, for data this
+// sensitive (raw touch/motion recordings), private is the right choice
+// anyway — session content should never be reachable via a guessable URL.
+const BLOB_ACCESS = process.env.PRESENCE_BLOB_ACCESS === 'public' ? 'public' : 'private';
 
 function makeId(record) {
   return `${record.meta?.label || 'unlabeled'}_${record.meta?.participant || 'anon'}_${Date.now()}`;
@@ -39,7 +49,7 @@ async function saveSession(record) {
   if (useBlob) {
     const { put } = require('@vercel/blob');
     await withTimeout(put(`${BLOB_PREFIX}${id}.json`, JSON.stringify(record, null, 2), {
-      access: 'public', addRandomSuffix: false, contentType: 'application/json'
+      access: BLOB_ACCESS, addRandomSuffix: false, contentType: 'application/json'
     }), 'put');
     return { id };
   }
@@ -57,4 +67,4 @@ async function listSessions() {
   return fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'));
 }
 
-module.exports = { saveSession, listSessions, SESSIONS_DIR, useBlob };
+module.exports = { saveSession, listSessions, SESSIONS_DIR, useBlob, BLOB_ACCESS };
