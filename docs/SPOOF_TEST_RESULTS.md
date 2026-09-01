@@ -1,6 +1,6 @@
 # PRESENCE spoof-test findings (auto-generated, re-run with `npm run test:spoof`)
 
-Run at 2026-09-01T05:36:09.651Z against http://127.0.0.1:8787
+Run at 2026-09-01T12:27:44.349Z against http://127.0.0.1:8787
 
 ## A. Real taps, flat IMU (baseline — simulates scrcpy/AnyDesk driving a phone at rest)
 ```
@@ -28,12 +28,12 @@ This is *expected* to look low-risk — telemetry authenticity (that it came fro
 
 ## E. Vehicle single-bump — one ~150ms speed-bump burst during the shake challenge (regression test for a real bug report)
 ```
-{"payload":{"sessionId":"26a0c177-c936-4798-9ac3-caecc4680b7a","authorized":false,"energy":1,"threshold":8.38,"iat":1788240969646},"signature":"6345721b7c1e1a4d8fb7cbad2d23a2a29c000bf9bf1e84d1a54c6203455037dc"}
+{"payload":{"sessionId":"984d3a10-b8f8-4e30-b6a2-a203c30aa93c","authorized":false,"energy":1,"threshold":8,"iat":1788265664341},"signature":"163405183d8d36ed02d62991ff2a1f273032d11a36e9ec954520052285ad4f98"}
 ```
 **PASS** — a single momentary jolt (e.g. a car hitting one speed bump while the victim is being socially engineered mid-drive) is correctly rejected. Fixed by requiring temporally-separated *bursts* of qualifying samples (gap > 150ms starts a new burst) instead of a raw qualifying-sample count, which a single ~150ms jolt could satisfy outright at 60Hz sampling.
 
 ## F. Bumpy road, three separated bumps — known residual gap (documented, not fixed)
 ```
-{"payload":{"sessionId":"26a0c177-c936-4798-9ac3-caecc4680b7a","authorized":true,"energy":3,"threshold":8.36,"iat":1788240969649},"signature":"566321abf05e6115f9bfbcb4a9036fb8a2dfa721c15240a3a1fecccd76df43ee"}
+{"payload":{"sessionId":"984d3a10-b8f8-4e30-b6a2-a203c30aa93c","authorized":true,"energy":3,"threshold":8.41,"iat":1788265664347},"signature":"c08ff52039b72b0568e1050c8a89f0ba7640a82ff0179a2561dd33f83d37917b"}
 ```
 **KNOWN GAP** — a genuinely rough road producing 3+ well-separated large bumps within the challenge window still authorizes, since each bump is its own burst and burst-counting alone cannot tell "3 deliberate shakes" from "3 distinct road bumps". Closing this fully needs frequency-domain shake-signature analysis (a real hand shake oscillates ~2-6Hz with alternating direction; a bump is a single-direction impulse) — not implemented here for lack of real calibration data to validate against, consistent with this project's policy of not guessing new physical-sensor constants. Tracked in docs/LIMITATIONS.md.
