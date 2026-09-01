@@ -97,6 +97,41 @@ Vercel이면 프로젝트 설정의 Environment Variables에 `ANTHROPIC_API_KEY`
 때문이다. 프롬프트 인젝션 완화, 대규모 평가 부재 등 정직한 한계는
 `docs/LIMITATIONS.md` 15번 항목 참고.
 
+## 데이터 저장 (Vercel Blob)
+
+Vercel은 서버리스 함수의 파일시스템이 읽기 전용이라, 배포된 URL에서
+"데이터 수집" 탭의 "JSON 내보내기"를 눌러도 기본적으로는 저장이 안 되고
+명확한 안내 메시지만 뜬다(`docs/LIMITATIONS.md` 13번 항목). Vercel Blob을
+연결하면 이것도 저장된다 — 코드는 이미 준비돼 있고, 아래 절차만 하면 된다.
+
+1. **Vercel 대시보드 → 해당 프로젝트 → Storage 탭 → "Create Database"
+   → Blob 선택** → 저장소 이름 정하고 생성.
+2. 생성하면 프로젝트에 자동으로 연결되면서 **`BLOB_READ_WRITE_TOKEN`
+   환경변수가 자동으로 추가된다** — `ANTHROPIC_API_KEY`처럼 직접 값을
+   복사해서 붙여넣을 필요가 없다.
+3. 재배포되면(자동으로 되거나, 수동으로 Redeploy) 끝. 이제 배포된
+   URL에서 "JSON 내보내기"를 누르면 실제로 저장되고, "업로드됨 (총
+   N건)"이 뜬다.
+
+**학습 파이프라인과 연결하기**: `scripts/train_l3_model.js` 등은 로컬
+파일시스템(`server/data/sessions/`)만 읽으므로, Blob에 쌓인 세션을 학습
+전에 로컬로 내려받아야 한다:
+
+```bash
+cd server
+BLOB_READ_WRITE_TOKEN=... npm run pull:blob
+```
+
+토큰은 Vercel 대시보드의 해당 Blob 저장소 → ".env.local" 탭에서 복사.
+이미 로컬에 있는 파일은 덮어쓰지 않고 새로 추가된 것만 받아온다.
+
+**정직한 한계**: 이 세션에는 Vercel 계정/Blob 저장소가 없어서, 실제
+토큰으로 저장·조회가 되는지는 검증하지 못했다. 대신 (1) 로컬 파일
+저장 경로는 전혀 안 바뀌었는지, (2) Vercel인데 Blob 미연결이면 명확한
+안내가 뜨는지, (3) 유효하지 않은 토큰으로 실제 API를 호출했을 때
+서버가 멈추지 않고 10초 후 502로 정상 응답하는지(타임아웃 가드)는
+직접 실행해서 확인했다.
+
 ## L2 시각 유사도 레퍼런스 재생성
 
 ```bash
@@ -120,11 +155,12 @@ vercel             # 저장소 루트에서 실행, 로그인 후 안내대로
 파일)을 각각 서버리스 함수/정적 자산으로 배포하도록 라우팅한다. 단,
 **두 가지는 배포 환경에서 동작이 달라진다**:
 
-- **수집 도구(세션 저장)**: 서버리스 함수는 파일시스템이 읽기 전용이라
-  `/api/session/export`가 저장을 시도하지 않고 바로 "이 환경은 저장을
-  지원하지 않는다"는 메시지를 반환한다. 실제 학습 데이터 수집은 여전히
-  로컬에서 `npm start`로 돌려야 한다 — 애초에 폰을 직접 조작해야 하는
-  작업이라 공개 배포 여부와 무관하게 로컬 워크플로다.
+- **수집 도구(세션 저장)**: 서버리스 함수는 파일시스템이 읽기 전용이라,
+  Vercel Blob을 연결하지 않으면 `/api/session/export`가 저장을 시도하지
+  않고 명확한 안내 메시지를 반환한다. 위 "데이터 저장 (Vercel Blob)"
+  절차대로 Blob을 연결하면 배포 환경에서도 저장된다. 다만 폰을 직접
+  조작해야 데이터가 생기는 건 여전해서, 수집 자체는 배포 여부와 무관하게
+  실기기가 있는 사람이 직접 눌러야 하는 작업이다.
 - **L2(페이지 렌더링)**: Vercel엔 시스템 Chromium이 없어서 `playwright-core`
   + `@sparticuz/chromium`(서버리스용 경량 바이너리) 조합으로 전환된다.
   일반적으로 쓰이는 패턴이지만, **이 세션은 Vercel 계정이 없어 실제 배포에서
@@ -145,7 +181,7 @@ server/
     l2.js        Playwright 랜딩페이지 판정
     visual.js    L2용 지각적 해시(perceptual hash) 시각 유사도
     sign.js      HMAC 서명/검증 — 클라이언트가 판정을 위조 못 하게
-    store.js     수집 세션 파일 저장
+    store.js     수집 세션 저장 (로컬 파일시스템 또는 Vercel Blob)
   public/
     index.html   클라이언트 (표시 전용, 최종 판단은 서버 응답만 신뢰)
     demo.html    심사용 L3/L4 인터랙티브 대시보드 (/demo)
@@ -153,6 +189,7 @@ server/
     bank-login-*.html   L2 시각 유사도용 은행 로그인 목업(직접 제작)
   scripts/
     build_visual_reference.js   위 목업을 렌더링해 해시 생성
+    pull_blob_sessions.js       Vercel Blob에 쌓인 세션을 로컬로 내려받기
   test/
     spoof_test.js
   data/

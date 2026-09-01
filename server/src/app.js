@@ -6,7 +6,8 @@ const { analyzeMessageWithClaude } = require('./l0');
 const { scoreDomain } = require('./l1');
 const { analyzeLandingPage } = require('./l2');
 const { signDecision, verifyDecision } = require('./sign');
-const { saveSession, listSessions } = require('./store');
+const store = require('./store');
+const { saveSession, listSessions } = store;
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
@@ -136,18 +137,23 @@ app.post('/api/session/challenge-result', (req, res) => {
 });
 
 // ---- L3 data collection: persist recordings for the training pipeline ----
-// Serverless deployments (Vercel) ship a read-only filesystem — there's
-// nowhere durable to write here. Real data collection is a `npm start`-on-
-// your-own-machine workflow (see README); the public deployment just says so
-// instead of pretending to save and silently losing the recording.
-app.post('/api/session/export', (req, res) => {
-  if (process.env.VERCEL) {
-    return res.status(501).json({ error: 'not-supported-on-this-deployment', message: '이 배포 환경은 저장소가 없어 세션을 저장할 수 없습니다. 로컬에서 npm start로 실행해 수집하세요 (파일은 이미 다운로드됐습니다).' });
-  }
+// Local dev writes straight to disk. Serverless (Vercel) ships a read-only
+// filesystem, so store.js switches to Vercel Blob there IF a Blob store is
+// connected to the project (BLOB_READ_WRITE_TOKEN gets auto-injected when
+// you do — see README). If Vercel + no Blob store, say so clearly instead
+// of pretending to save and silently losing the recording.
+app.post('/api/session/export', async (req, res) => {
   const record = req.body;
   if (!record || !record.meta) return res.status(400).json({ error: 'record.meta required' });
-  const { id } = saveSession(record);
-  res.json({ id, stored: true, totalSessions: listSessions().length });
+  if (process.env.VERCEL && !store.useBlob) {
+    return res.status(501).json({ error: 'not-configured', message: '이 배포 환경엔 Blob 저장소가 연결되어 있지 않아 세션을 저장할 수 없습니다. Vercel 프로젝트의 Storage 탭에서 Blob 저장소를 만들어 연결하세요 (README 참고). 파일은 이미 다운로드됐습니다.' });
+  }
+  try {
+    const { id } = await saveSession(record);
+    res.json({ id, stored: true, totalSessions: (await listSessions()).length });
+  } catch (e) {
+    res.status(502).json({ error: 'save-failed', message: '세션 저장에 실패했습니다: ' + e.message + ' (파일은 이미 다운로드됐습니다).' });
+  }
 });
 
 app.get('/api/model/weights', (req, res) => {
