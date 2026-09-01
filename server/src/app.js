@@ -12,7 +12,6 @@ const { saveSession, listSessions, getSession } = store;
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
-app.get('/demo', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'demo.html')));
 
 const DECISION_TTL_MS = 60_000;
 // Absolute m/s^2 thresholds (13, then 7) were both guesses tuned against one
@@ -78,20 +77,6 @@ app.post('/api/session/decision', (req, res) => {
   if (!Array.isArray(taps) || !Array.isArray(imu)) return res.status(400).json({ error: 'taps[] and imu[] required' });
   const { signed, rows } = computeDecision(taps, imu, trace, flags);
   res.json({ ...signed, rows });
-});
-
-// ---- Judge/demo dashboard: identical decision math, extra debug detail ----
-// Same computeDecision() as production — the token it signs is accepted by
-// the real /api/session/challenge-result below unchanged. The only addition
-// is `debug.imu`, the real per-tap impulse trace from analyzeSession(), so
-// server/public/demo.html can chart the actual signal instead of a fabricated
-// number. Kept as a separate route so the production decision endpoint's
-// response shape never changes.
-app.post('/api/demo/decision', (req, res) => {
-  const { taps = [], imu = [], trace = null, flags = {} } = req.body || {};
-  if (!Array.isArray(taps) || !Array.isArray(imu)) return res.status(400).json({ error: 'taps[] and imu[] required' });
-  const { signed, rows, imuMeta } = computeDecision(taps, imu, trace, flags);
-  res.json({ ...signed, rows, debug: { imu: imuMeta || null } });
 });
 
 // ---- L4: physical-presence challenge, judged server-side ----

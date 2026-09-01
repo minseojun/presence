@@ -83,6 +83,11 @@
   .pill{display:inline-block;font-family:var(--mono);font-size:9.5px;padding:2px 7px;border-radius:20px;border:1px solid var(--line);color:var(--mut)}
   .pill.ok{color:var(--green);border-color:var(--green-line);background:var(--green-bg)}
   .pill.no{color:var(--amber);border-color:var(--amber-line);background:var(--amber-bg)}
+  .pill.layer{color:var(--cyan);border-color:#bfe6ec;background:#e7f6f9;font-weight:700;vertical-align:middle}
+  .intro-banner{background:#12161d;color:#c8ced8;border-radius:14px;padding:13px 15px;margin-bottom:14px;font-size:11.5px;line-height:1.6}
+  .intro-banner b{color:#fff}
+  .intro-banner .steps{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+  .intro-banner .steps span{font-family:var(--mono);font-size:9.5px;padding:2px 7px;border-radius:20px;background:rgba(255,255,255,.08);color:#9fe6f2}
   code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:4px;color:var(--cyan);font-size:11px}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);display:inline-block;vertical-align:middle;margin-right:4px}
   .dot.on{background:var(--green);box-shadow:0 0 5px var(--green)}
@@ -129,18 +134,24 @@
 <body>
 <header>
   <div class="brand"><h1>PRESENCE</h1></div>
-  <a href="/demo.html" style="font-size:10.5px;color:var(--cyan);text-decoration:none">🧪 심사용 시뮬레이터</a>
 </header>
 <main>
   <!-- 1. 문자 링크(미끼) -->
   <section class="screen active" id="s-intro">
+    <div class="intro-banner">
+      <b>PRESENCE</b>는 원격조종 앱(AnyDesk 등)으로 피해자 폰을 직접 조작하는
+      보이스피싱을 막는 4단계 방어 데모입니다. 아래 화면을 그대로 따라가면
+      각 단계가 실제로 작동하는 걸 순서대로 볼 수 있습니다 — 배지가 지금
+      어느 계층이 판단 중인지 알려줍니다.
+      <div class="steps"><span>L0 문자 내용</span><span>L1 링크</span><span>L2 페이지</span><span>L3 세션 무결성</span><span>L4 물리적 챌린지</span></div>
+    </div>
     <div class="sms">
       <div class="sms-head">📩 [국민은행]</div>
       <div class="sms-body">[Web발신]<br>고객님 명의로 비정상 로그인이 감지되었습니다. 본인확인이 필요합니다.</div>
       <input class="t" id="introUrl" style="font-size:13px" value="https://kb-bank-secure.tk/login">
     </div>
     <div class="card">
-      <h2>🤖 AI 문자 분석</h2>
+      <h2>🤖 AI 문자 분석 <span class="pill layer">L0</span></h2>
       <p class="lead">L1(링크 판정)이 URL을 보기 전에, 문자 <b>내용</b> 자체를 Claude가 사기 분석가처럼 읽고 설명합니다. 아래 텍스트를 직접 받은 의심 문자로 바꿔서 테스트해도 됩니다.</p>
       <textarea class="t" id="aiText" rows="3" style="resize:vertical;font-family:var(--sans);line-height:1.5">[Web발신] 고객님 명의로 비정상 로그인이 감지되었습니다. 본인확인이 필요합니다. 아래 링크에서 즉시 확인해주세요.</textarea>
       <button class="btn ghost sm" id="btnAiAnalyze">AI로 분석하기</button>
@@ -162,6 +173,7 @@
   <section class="screen" id="s-blocked">
     <div class="result-icon" style="color:var(--red)">⚠</div>
     <h2 class="result-title" style="color:var(--red)">위험한 링크입니다</h2>
+    <div style="text-align:center;margin-bottom:8px"><span class="pill layer">L1</span> <span class="pill layer">L2</span></div>
     <p class="result-sub" id="blockedReason"></p>
     <button class="btn" id="btnBlockedHome">닫기</button>
     <button class="btn ghost sm" id="btnBlockedOverride">그래도 진행 (데모용)</button>
@@ -233,7 +245,7 @@
 
 <!-- shake modal -->
 <div class="modal" id="shakeModal"><div class="sheet">
-  <h3>본인 확인이 필요합니다</h3>
+  <h3><span class="pill layer" style="margin-right:6px">L4</span>본인 확인이 필요합니다</h3>
   <p>이체를 완료하려면 <b>기기를 가볍게 흔들어</b> 주세요. 원격 조작 중에는 불가능합니다.</p>
   <div class="ring" id="shakeRing"><b id="shakePct">0%</b><small id="shakeTimer">4.0s</small></div>
   <div class="meter"><i id="shakeBar"></i></div>
@@ -261,6 +273,11 @@
     <b>개발자 도구</b>
     <button class="btn ghost sm" id="btnDevClose" style="margin:0;width:auto;padding:6px 14px">닫기</button>
   </div>
+  <p class="lead">이 화면은 <b>실제 이체 승인·차단 결정에는 관여하지 않는</b> 검증·연구용
+    도구입니다. <b>검증랩</b>은 왜 이 시스템이 원격조종을 구분하는지(L3 신호)를
+    실시간으로 눈에 보여주는 창이고, <b>데이터 수집</b>은 그 판정 기준을 실제
+    데이터로 학습시킬 녹화를 모으는 도구입니다. 아래에서 아무리 두드리고
+    저장해도 실제 이체 화면의 판정에는 영향이 없습니다.</p>
   <div class="status">
     <div class="chip"><span>센서</span><b id="sRate"><i class="dot" id="sDot"></i><span id="sRateTxt">꺼짐</span></b></div>
     <div class="chip"><span>보정</span><b id="sCal">안 됨</b></div>
@@ -278,9 +295,9 @@
   <!-- 검증랩 -->
   <section class="view active" id="v-lab">
     <div class="card">
-      <h2>① 터치–IMU 오실로스코프</h2>
+      <h2>① 터치–IMU 오실로스코프 <span class="pill layer">L3</span></h2>
       <p class="lead">화면을 두드려 보세요. 두드릴 때마다 <b style="color:var(--green)">초록</b>(정합) 또는 <b style="color:var(--red)">빨강</b>(미정합)이 표시됩니다.</p>
-      <div class="scope-wrap"><canvas id="scope" height="300"></canvas>
+      <div class="scope-wrap"><canvas id="scope"></canvas>
         <div class="legend"><span><i style="background:var(--cyan)"></i>|a|</span><span><i style="background:var(--violet)"></i>|ω|</span><span><i style="background:var(--green)"></i>정합</span><span><i style="background:var(--red)"></i>미정합</span></div>
       </div>
       <div class="readout">
@@ -289,9 +306,9 @@
       </div>
     </div>
     <div class="card">
-      <h2>② 궤적 · 타이밍</h2>
+      <h2>② 궤적 · 타이밍 <span class="pill layer">L3</span></h2>
       <p class="lead">점에서 점으로 천천히 드래그해 보세요. 사람 손은 곡선을 그리고, 원격 커서는 직선적입니다.</p>
-      <div class="scope-wrap"><canvas id="pad" height="240"></canvas></div>
+      <div class="scope-wrap"><canvas id="pad"></canvas></div>
       <div class="readout">
         <div class="ro"><span>직선도</span><b id="tStr">—</b></div>
         <div class="ro"><span>보정 횟수</span><b id="tSub">—</b></div>
@@ -300,7 +317,7 @@
       </div>
     </div>
     <div class="card">
-      <h2>③ 종합 위험도</h2>
+      <h2>③ 종합 위험도 <span class="pill layer">L3</span></h2>
       <div id="labBars" class="bars"></div>
       <button class="btn ghost sm" id="btnClear">버퍼 초기화</button>
     </div>
@@ -309,7 +326,7 @@
   <!-- 수집 -->
   <section class="view" id="v-collect">
     <div class="card">
-      <h2>세션 녹화</h2>
+      <h2>세션 녹화 <span class="pill layer">L3</span></h2>
       <label class="f">라벨</label>
       <div class="seg" id="segLabel"><button data-l="normal" class="on">정상 (손)</button><button data-l="remote">원격 조작</button></div>
       <label class="f">참여자 ID</label>
@@ -590,14 +607,14 @@ document.getElementById('btnOpenLink').onclick=async()=>{
 
 async function runLinkCheck(url){
   const tags=[];let l1verdict=null,l2verdict=null;
-  $('#checkingText').textContent='링크 확인 중…';
+  $('#checkingText').innerHTML='<span class="pill layer">L1</span> 링크(도메인) 검사 중…';
   try{
     const l1=await postJSON('/api/l1/check',{url});
     l1verdict=l1.verdict;
     const f=l1.features||{};
     tags.push(...[f.brandLookalike&&'브랜드 유사 도메인',f.brandPlusGenericWord&&'브랜드+의심 단어 조합',f.isPunycode&&'punycode 도메인',f.isSuspiciousTld&&'의심스러운 도메인 확장자',f.isShortener&&'단축 URL',f.isIp&&'IP 주소 직접 사용'].filter(Boolean));
   }catch(e){/* L1 unreachable — judged on L2 alone below */}
-  $('#checkingText').textContent='페이지 확인 중…';
+  $('#checkingText').innerHTML='<span class="pill layer">L2</span> 랜딩페이지 검사 중…';
   try{
     const l2=await postJSON('/api/l2/check',{url});
     l2verdict=l2.verdict;
@@ -651,7 +668,7 @@ function barColor(p){return p<.3?'var(--green)':p<.6?'var(--amber)':'var(--red)'
 function barsHTML(rows){return rows.map(x=>`<div class="bar ${x.active?'':'off'}"><div class="bl"><span>${x.label} · w${x.w}</span><span>${x.active?(x.p*100).toFixed(0)+'%':'표본부족'}</span></div><div class="track"><div class="fill" style="width:${x.active?x.p*100:0}%;background:${barColor(x.p||0)}"></div></div></div>`).join('');}
 function renderVerdict(decision){
   const{payload,rows}=decision,band=payload.band,label=band==='low'?'물리적 현존 확인 — 저위험':band==='mid'?'추가 확인 필요 — 주의':'원격 조작 의심 — 고위험';
-  $('#verdictSlot').innerHTML=`<div class="verdict ${band}"><div class="row"><div><div class="label">${label}</div><div style="font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:4px">신호 커버리지 ${Math.round(payload.coverage*100)}% · <span style="color:var(--cyan)">서버 서명됨</span></div></div><div class="score">${payload.score}</div></div><div class="bars" style="margin-top:14px">${barsHTML(rows)}</div></div>`;
+  $('#verdictSlot').innerHTML=`<div class="verdict ${band}"><div class="row"><div><div class="label"><span class="pill layer" style="margin-right:6px">L3</span>${label}</div><div style="font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:4px">신호 커버리지 ${Math.round(payload.coverage*100)}% · <span style="color:var(--cyan)">서버 서명됨</span></div></div><div class="score">${payload.score}</div></div><div class="bars" style="margin-top:14px">${barsHTML(rows)}</div></div>`;
 }
 function goResult(ok,title,sub){
   $('#resultIcon').textContent=ok?'✓':'✕';$('#resultIcon').style.color=ok?'var(--green)':'var(--red)';
@@ -731,8 +748,8 @@ document.getElementById('btnCancelShake').onclick=()=>{closeShake();goResult(fal
 // challenge on a device that actually has a sensor. It exists purely so a
 // judge on a laptop can see the transfer flow complete instead of dead-
 // ending at an unwinnable "shake your phone" prompt. Builds the same
-// several-separated-bursts shape already validated in server/test/
-// spoof_test.js and server/public/demo.html's "real shake" scenario.
+// several-separated-bursts shape already validated in
+// server/test/spoof_test.js's "real shake" scenario.
 document.getElementById('btnSimShake').onclick=()=>{
   if(!shakeCtx)return;
   if(shakeRAF)cancelAnimationFrame(shakeRAF);
@@ -764,11 +781,20 @@ document.querySelectorAll('#devSeg button').forEach(b=>b.onclick=()=>{
 /* ===== lab: oscilloscope ===== */
 const cv=$('#scope'),cx=cv.getContext('2d');
 const pad=$('#pad'),px=pad.getContext('2d');
-function fit(c){const w=c.clientWidth;c.width=w*devicePixelRatio;c.height=c.getAttribute('height')*devicePixelRatio;c.getContext('2d').setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
-function fitAll(){fit(cv);fit(pad);drawPadBase();}
+// Height used to be a fixed HTML attribute (300/240px) regardless of screen
+// width, which made these two canvases take up most of a phone screen's
+// height — scale with the actual viewport width instead (ratio of width,
+// capped so it doesn't get silly-tall on a wide window).
+function fit(c,ratio,maxH){
+  const w=c.clientWidth,h=Math.round(Math.min(maxH,Math.max(120,w*ratio)));
+  c.style.height=h+'px';
+  c.width=w*devicePixelRatio;c.height=h*devicePixelRatio;
+  c.getContext('2d').setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+}
+function fitAll(){fit(cv,0.42,190);fit(pad,0.36,170);drawPadBase();}
 window.addEventListener('resize',()=>{if($('#devDrawer').classList.contains('show'))fitAll();});
 function drawScope(){
-  const W=cv.clientWidth,H=+cv.getAttribute('height'),t=now(),span=6000;cx.clearRect(0,0,W,H);
+  const W=cv.clientWidth,H=cv.clientHeight,t=now(),span=6000;cx.clearRect(0,0,W,H);
   cx.strokeStyle='#0f1620';cx.lineWidth=1;for(let i=1;i<5;i++){const y=H*i/5;cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke();}
   const win=IMU.filter(s=>t-s.t<=span),X=ts=>W-(t-ts)/span*W;
   const aMax=Math.max(2.5,...win.map(s=>s.mag)),gMax=Math.max(30,...win.map(s=>s.gmag));
@@ -781,7 +807,7 @@ function drawScope(){
 }
 /* lab: trace pad */
 let tracing=false,tracePts=[];
-function drawPadBase(){const W=pad.clientWidth,H=+pad.getAttribute('height');px.clearRect(0,0,W,H);px.fillStyle='#0a1119';px.fillRect(0,0,W,H);
+function drawPadBase(){const W=pad.clientWidth,H=pad.clientHeight;px.clearRect(0,0,W,H);px.fillStyle='#0a1119';px.fillRect(0,0,W,H);
   px.fillStyle='#16324a';[[0.16,0.75],[0.84,0.28]].forEach(([fx,fy])=>{px.beginPath();px.arc(W*fx,H*fy,13,0,7);px.fill();});
   px.fillStyle='#3a566f';px.font='11px '+getComputedStyle(document.body).fontFamily;px.fillText('시작',W*0.16-12,H*0.75+30);px.fillText('끝',W*0.84-8,H*0.28-18);}
 function padPos(e){const r=pad.getBoundingClientRect();return{t:e.timeStamp||now(),x:e.clientX-r.left,y:e.clientY-r.top};}
