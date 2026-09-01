@@ -15,7 +15,15 @@ try { fs.mkdirSync(SESSIONS_DIR, { recursive: true }); } catch (_) {}
 
 const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
 const BLOB_PREFIX = 'sessions/';
-const BLOB_TIMEOUT_MS = 10_000;
+// Kept comfortably below Vercel's default serverless function duration
+// limit (commonly 10s on the Hobby tier unless raised) so our own clean
+// JSON error response wins the race and reaches the client — otherwise the
+// platform kills the function first and the client sees a raw dropped
+// connection (Safari: "Load failed", Chrome: "Failed to fetch") with no
+// explanation at all. A real user hit exactly that; this is a best-effort
+// mitigation, not a verified fix — this sandbox can't reach Vercel to
+// confirm the actual plan/limit in effect.
+const BLOB_TIMEOUT_MS = 8_000;
 // Vercel Blob stores are created as either Public or Private (chosen once,
 // in the dashboard, when the store is created) and every put()/get() call
 // must match that store's mode exactly — 'public' against a Private store

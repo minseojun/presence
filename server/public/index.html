@@ -298,7 +298,7 @@
       <h2>① 터치–IMU 오실로스코프 <span class="pill layer">L3</span></h2>
       <p class="lead">화면을 두드려 보세요. 두드릴 때마다 <b style="color:var(--green)">초록</b>(정합) 또는 <b style="color:var(--red)">빨강</b>(미정합)이 표시됩니다.</p>
       <div class="scope-wrap"><canvas id="scope"></canvas>
-        <div class="legend"><span><i style="background:var(--cyan)"></i>가속도</span><span><i style="background:var(--violet)"></i>회전 속도</span><span><i style="background:var(--green)"></i>정합</span><span><i style="background:var(--red)"></i>미정합</span></div>
+        <div class="legend"><span><i style="background:var(--cyan)"></i>|a|</span><span><i style="background:var(--violet)"></i>|ω|</span><span><i style="background:var(--green)"></i>정합</span><span><i style="background:var(--red)"></i>미정합</span></div>
       </div>
       <div class="readout">
         <div class="ro"><span>임펄스 비율</span><b id="lRatio">—</b></div>
@@ -842,14 +842,35 @@ document.getElementById('btnRec').onclick=function(){
 function recFeatures(){const feats=analyzeSession(rec.taps.map(t=>({t:t.t})),rec.imu);const traj=analyzeTrajectory(rec.trace),timing=analyzeTiming(rec.trace);return{imu:feats,trajectory:traj,timing};}
 document.getElementById('btnExport').onclick=async()=>{
   const payload={meta:{label:rec.label,participant:$('#pid').value||'anon',ua:navigator.userAgent,startedAt:new Date().toISOString(),durationMs:+(rec.imu.length?rec.imu[rec.imu.length-1].t:0).toFixed(0),sampleHz:rateHz,cfg:CFG},features:recFeatures(),taps:rec.taps,trace:rec.trace,imu:rec.imu};
-  const blob=new Blob([JSON.stringify(payload)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;a.download=`session_${rec.label}_${payload.meta.participant}_${Date.now()}.json`;a.click();URL.revokeObjectURL(url);
-  try{
-    const r=await fetch('/api/session/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const body=JSON.stringify(payload);
+  const btn=$('#btnExport');
+  btn.disabled=true;$('#cState').textContent='업로드 중…';
+  const doUpload=()=>fetch('/api/session/export',{method:'POST',headers:{'Content-Type':'application/json'},body});
+  // A plain `TypeError` here (Safari: "Load failed", Chrome: "Failed to
+  // fetch") means the network request never got an HTTP response at all —
+  // reported case: a real user on a phone hit exactly this. Usually a
+  // transient mobile connectivity blip (screen lock, wifi/cellular handoff)
+  // rather than a real server problem, so retry once before giving up.
+  let r;
+  try{r=await doUpload();}
+  catch(e){
+    await new Promise(res=>setTimeout(res,1200));
+    try{r=await doUpload();}catch(e2){r=null;}
+  }
+  if(r){
     const d=await r.json().catch(()=>({}));
-    if(!r.ok)$('#cState').textContent='업로드 실패: '+(d.message||d.error||('HTTP '+r.status))+' (파일은 로컬에 저장됨)';
+    if(!r.ok)$('#cState').textContent='업로드 실패: '+(d.message||d.error||('HTTP '+r.status))+' (파일은 아래에서 다운로드됩니다)';
     else $('#cState').textContent=`업로드됨 (총 ${d.totalSessions}건)`;
-  }catch(e){$('#cState').textContent='업로드 실패: 서버에 연결할 수 없습니다 (파일은 로컬에 저장됨) — '+e.message;}
+  }else{
+    $('#cState').textContent='업로드 실패: 네트워크 연결 문제로 서버에 닿지 못했습니다 — 화면이 꺼졌거나 신호가 약했을 수 있습니다. 파일은 아래에서 다운로드되니, 와이파이 등 안정적인 연결에서 "JSON 내보내기"를 다시 눌러보세요.';
+  }
+  // Trigger the local file download AFTER the upload attempt, not before —
+  // on iOS Safari, a.click() on a Blob-URL download can pop a native
+  // "저장" sheet that backgrounds the page and can interrupt an in-flight
+  // fetch, which is a very plausible contributor to the failure above.
+  const blob=new Blob([body],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`session_${rec.label}_${payload.meta.participant}_${Date.now()}.json`;a.click();URL.revokeObjectURL(url);
+  btn.disabled=false;
 };
 function snapshot(){const t=now(),rt=TAPS.filter(x=>t-x.t<=15000),win=IMU.filter(x=>t-x.t<=15000);const parts=buildParts(rt,win,lastTrace);return{parts,risk:fuseRisk(parts)};}
 document.getElementById('slotNormal').onclick=()=>{slots.normal=snapshot();renderCmp();};
