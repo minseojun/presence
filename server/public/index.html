@@ -324,6 +324,8 @@
         <button class="btn ghost sm" id="slotNormal" style="margin-top:0">정상 슬롯 저장</button>
         <button class="btn ghost sm" id="slotRemote" style="margin-top:0">원격 슬롯 저장</button>
       </div>
+      <button class="btn ghost sm" id="btnLoadStored">☁️ 서버에 저장된 세션 불러와서 비교</button>
+      <p class="foot" id="loadStoredMsg" style="min-height:14px"></p>
       <div id="cmpSlot"></div>
     </div>
   </section>
@@ -836,6 +838,61 @@ function renderCmp(){
   html+=`<tr><td><b>융합 위험도</b></td><td class="g"><b>${n?n.risk.score:'—'}</b></td><td class="r"><b>${r?r.risk.score:'—'}</b></td></tr></table>`;
   $('#cmpSlot').innerHTML=html;
 }
+
+// A record saved via btnExport already carries precomputed features
+// (analyzeSession/analyzeTrajectory/analyzeTiming ran once at recording
+// time — see recFeatures()), so build fusion parts straight from those
+// instead of re-deriving anything. Pointer-property flags (mouseSeen etc.)
+// aren't part of the exported schema, same known gap as
+// scripts/train_l3_model.js's extractFeatureVector() — treated as
+// unavailable rather than guessed.
+function partsFromRecord(record){
+  const f=record.features||{};
+  const tapCount=(record.taps||[]).length;
+  const parts={};
+  parts.imu=(f.imu&&tapCount>=2)?{p:+(1-f.imu.impulseRatio).toFixed(2),ok:true,meta:f.imu}:{p:0,ok:false,meta:f.imu};
+  parts.traj=(f.trajectory&&!f.trajectory.insufficient)?{p:f.trajectory.pRemote,ok:true}:{p:0,ok:false};
+  parts.timing=(f.timing&&!f.timing.insufficient)?{p:f.timing.pRemote,ok:true}:{p:0,ok:false};
+  parts.props={p:0,ok:false};
+  return parts;
+}
+document.getElementById('btnLoadStored').onclick=async()=>{
+  const msg=$('#loadStoredMsg'),btn=$('#btnLoadStored');
+  btn.disabled=true;msg.style.color='var(--mut)';msg.textContent='서버에서 목록 불러오는 중…';
+  try{
+    const listR=await fetch('/api/session/list');
+    if(!listR.ok)throw new Error('목록 조회 실패 (HTTP '+listR.status+')');
+    const{sessions=[]}=await listR.json();
+    // Filenames aren't a reliable sort key — some come from a different
+    // generator (scripts/import_real_export.js) with an extra segment, so
+    // "latest" is decided from each record's real meta.startedAt instead of
+    // parsed out of the filename.
+    const latestForLabel=async(label)=>{
+      const names=sessions.filter(n=>n.startsWith(label+'_'));
+      if(!names.length)return null;
+      const entries=(await Promise.all(names.map(async n=>{
+        const r=await fetch('/api/session/'+encodeURIComponent(n));
+        return r.ok?{name:n,rec:await r.json()}:null;
+      }))).filter(Boolean);
+      if(!entries.length)return null;
+      entries.sort((a,b)=>new Date(b.rec.meta?.startedAt||0)-new Date(a.rec.meta?.startedAt||0));
+      return entries[0];
+    };
+    const[nEntry,rEntry]=await Promise.all([latestForLabel('normal'),latestForLabel('remote')]);
+    if(!nEntry&&!rEntry){msg.style.color='var(--amber)';msg.textContent='서버에 저장된 세션이 없습니다.';btn.disabled=false;return;}
+    if(!nEntry||!rEntry){msg.style.color='var(--amber)';msg.textContent=`"${!nEntry?'정상':'원격 조작'}" 라벨 세션을 못 찾았습니다 — 둘 다 있어야 비교됩니다.`;btn.disabled=false;return;}
+    const pn=partsFromRecord(nEntry.rec),pr=partsFromRecord(rEntry.rec);
+    slots.normal={parts:pn,risk:fuseRisk(pn)};
+    slots.remote={parts:pr,risk:fuseRisk(pr)};
+    renderCmp();
+    msg.style.color='var(--green)';
+    const fmt=e=>`${e.rec.meta?.participant||'?'} (${e.rec.meta?.startedAt?new Date(e.rec.meta.startedAt).toLocaleString('ko-KR'):'시각 미상'})`;
+    msg.textContent=`불러옴 — 정상: ${fmt(nEntry)}, 원격: ${fmt(rEntry)}`;
+  }catch(e){
+    msg.style.color='var(--red)';msg.textContent='불러오기 실패: '+e.message;
+  }
+  btn.disabled=false;
+};
 
 /* ===== background loop (drives dev-drawer status + oscilloscope) ===== */
 function setSensorStatus(cls,text){const d=$('#sDot');if(d)d.className=cls?`dot ${cls}`:'dot';const t=$('#sRateTxt');if(t)t.textContent=text;}
