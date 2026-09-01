@@ -1,25 +1,60 @@
-// Minimal file-backed persistence — enough to make the "수집" tab and the
-// training pipeline talk to something real. Swap for a real DB before
-// production; there is no auth/multi-tenant concern yet (see LIMITATIONS.md).
+// Session persistence. Local dev (npm start on your own machine) always
+// writes to the local filesystem — collecting real phone data is a local
+// workflow anyway (see README), so this path never needs Blob storage.
+//
+// On Vercel, the filesystem is read-only, so writes there use Vercel Blob
+// instead — IF a Blob store is connected to the project (which auto-injects
+// BLOB_READ_WRITE_TOKEN; see README's "데이터 저장 (Vercel Blob)" section
+// for the one-time dashboard setup). If no Blob store is connected,
+// app.js returns a clear 501 instead of silently losing the recording.
 const fs = require('fs');
 const path = require('path');
 
 const SESSIONS_DIR = path.join(__dirname, '..', 'data', 'sessions');
-// Serverless platforms (Vercel) ship this directory read-only as part of the
-// deployment bundle; mkdirSync on an already-existing path is a no-op, but
-// guard anyway so a missing dir there doesn't crash every cold start. Actual
-// writes (saveSession) are gated off entirely on Vercel — see app.js.
 try { fs.mkdirSync(SESSIONS_DIR, { recursive: true }); } catch (_) {}
 
-function saveSession(record) {
-  const id = `${record.meta?.label || 'unlabeled'}_${record.meta?.participant || 'anon'}_${Date.now()}`;
+const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
+const BLOB_PREFIX = 'sessions/';
+const BLOB_TIMEOUT_MS = 10_000;
+
+function makeId(record) {
+  return `${record.meta?.label || 'unlabeled'}_${record.meta?.participant || 'anon'}_${Date.now()}`;
+}
+
+// A bad/expired token or a network hiccup can leave the underlying Blob
+// SDK call pending indefinitely (observed directly while testing this: a
+// fake token produced no error and no response at all). Race it against a
+// timeout so a storage problem always surfaces as a clear rejection instead
+// of hanging the Express request forever.
+function withTimeout(promise, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Blob ${label} timed out after ${BLOB_TIMEOUT_MS}ms — check BLOB_READ_WRITE_TOKEN is valid`)), BLOB_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function saveSession(record) {
+  const id = makeId(record);
+  if (useBlob) {
+    const { put } = require('@vercel/blob');
+    await withTimeout(put(`${BLOB_PREFIX}${id}.json`, JSON.stringify(record, null, 2), {
+      access: 'public', addRandomSuffix: false, contentType: 'application/json'
+    }), 'put');
+    return { id };
+  }
   const file = path.join(SESSIONS_DIR, `${id}.json`);
   fs.writeFileSync(file, JSON.stringify(record, null, 2));
   return { id, file };
 }
 
-function listSessions() {
+async function listSessions() {
+  if (useBlob) {
+    const { list } = require('@vercel/blob');
+    const { blobs } = await withTimeout(list({ prefix: BLOB_PREFIX }), 'list');
+    return blobs.map(b => b.pathname.slice(BLOB_PREFIX.length));
+  }
   return fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'));
 }
 
-module.exports = { saveSession, listSessions, SESSIONS_DIR };
+module.exports = { saveSession, listSessions, SESSIONS_DIR, useBlob };
