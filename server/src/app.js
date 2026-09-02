@@ -123,20 +123,28 @@ app.post('/api/session/challenge-result', (req, res) => {
 
   // Optional L4 step 1 (added alongside the shake): the client also streams
   // the points from the "connect start dot to end dot" trace drawn right
-  // before shaking. Graded the same way L3 already grades a trace (server
-  // recomputes it here rather than trusting the client's own verdict) — a
-  // strongly straight-line, mechanically-timed trace is remote-cursor-shaped
-  // even if the shake itself passes, so it can veto authorization on its
-  // own. Optional/backward-compatible: no tracePts (older client, or the
-  // "건너뛰기" skip button) just skips this check rather than blocking.
+  // before shaking. This used to also veto `authorized` on a high pRemote —
+  // reverted. Measured against a realistic quick two-dot swipe (short,
+  // slightly curved, ordinary touch sampling), analyzeTiming's cv/conc check
+  // alone returns pRemote=1.0: real touch/pointer events arrive at a very
+  // regular hardware-sampled interval, which is exactly what that heuristic
+  // reads as "mechanical". It was only ever validated as a *minor* weighted
+  // contributor inside L3's fused score (weight 0.08 alongside imu's 0.5),
+  // not as a standalone pass/fail gate — using it as a hard veto here meant
+  // almost every real user's honest quick swipe blocked the transfer
+  // regardless of how correctly they then shook the device. Kept as
+  // descriptive-only (still computed and returned for the dashboard) until
+  // it can be recalibrated against real recordings of this specific
+  // two-dot gesture, per this project's policy of not gating on
+  // physical-sensor heuristics that haven't been validated that way.
   let trajectory = null;
   if (Array.isArray(tracePts) && tracePts.length >= 6) {
     const traj = risk.analyzeTrajectory(tracePts);
     const timing = risk.analyzeTiming(tracePts);
     const pRemote = Math.max(traj.pRemote || 0, timing.pRemote || 0);
-    trajectory = { straightness: traj.straightness, cv: timing.insufficient ? null : timing.cv, pRemote, ok: pRemote < 0.6 };
+    trajectory = { straightness: traj.straightness, cv: timing.insufficient ? null : timing.cv, pRemote };
   }
-  const authorized = shakeOK && (trajectory ? trajectory.ok : true);
+  const authorized = shakeOK;
 
   const outcome = { sessionId: token.sessionId, authorized, energy: bursts, threshold: +relativeThreshold.toFixed(2), trajectory, iat: Date.now() };
   res.json(signDecision(outcome));
