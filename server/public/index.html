@@ -96,8 +96,16 @@
 
   /* ---- narrative flow ---- */
   .sms{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
-  .sms-head{font-size:11px;color:var(--mut);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-  .sms-body{font-size:14.5px;line-height:1.6;margin-bottom:12px}
+  .sms-toprow{display:flex;justify-content:flex-end;margin-bottom:4px}
+  .sms-head{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+  .sms-avatar{width:32px;height:32px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
+  .sms-who{display:flex;flex-direction:column;line-height:1.35}
+  .sms-who b{font-size:13px}
+  .sms-who span{font-size:10.5px;color:var(--dim)}
+  .bubble-wrap{position:relative;max-width:92%}
+  .bubble-wrap::before{content:'';position:absolute;left:-5px;bottom:8px;width:14px;height:14px;background:#e9e9eb;border-bottom-right-radius:12px;clip-path:polygon(100% 0,100% 100%,0 100%)}
+  textarea.bubble{position:relative;display:block;width:100%;box-sizing:border-box;background:#e9e9eb;color:#111;border:none;border-radius:18px 18px 18px 5px;padding:11px 14px;font-size:15px;line-height:1.55;font-family:var(--sans);resize:none;overflow:hidden;outline:none}
+  textarea.bubble:focus{box-shadow:0 0 0 2px var(--cyan)}
   .center-pad{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:56vh;gap:16px;text-align:center}
   .spinner{width:38px;height:38px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--cyan);animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -196,10 +204,14 @@
       <div class="steps"><span>L0 문자</span><span>L1 링크</span><span>L2 페이지</span><span>L3 손동작</span><span>L4 실물 확인</span></div>
     </div>
     <div class="sms">
-      <div class="sms-head">📩 [당근은행] 문자 도착 <span class="pill layer">L0</span></div>
-      <textarea class="t" id="msgText" rows="4" style="resize:vertical;font-family:var(--sans);line-height:1.6;font-size:14.5px">[Web발신] 고객님 명의로 비정상 로그인이 감지되었습니다. 본인확인이 필요합니다.
-아래 링크에서 즉시 확인해주세요: https://danggeun-bank-secure.tk/login</textarea>
-      <div class="lexplain"><b>💡 L0 설명</b> — 링크를 열기 전에, 문자 <b>내용</b>만 AI가 읽고 전형적인 사기 문구인지 알려줘요.</div>
+      <div class="sms-toprow"><span class="pill layer">L0</span></div>
+      <div class="sms-head">
+        <span class="sms-avatar">🏦</span>
+        <div class="sms-who"><b>당근은행</b><span>문자 메시지 · 오늘 오전 11:02</span></div>
+      </div>
+      <div class="bubble-wrap"><textarea class="bubble" id="msgText" rows="1">[Web발신] 고객님 명의로 비정상 로그인이 감지되었습니다. 본인확인이 필요합니다.
+아래 링크에서 즉시 확인해주세요: https://danggeun-bank-secure.tk/login</textarea></div>
+      <div class="lexplain"><b>💡 L0</b> — 링크를 열기 전에, 문자 <b>내용</b>만 AI가 읽고 전형적인 사기 문구인지 알려줘요.</div>
       <div class="btnrow">
         <button class="btn ghost sm" id="btnAiAnalyze">🤖 AI로 문자 분석</button>
         <button class="btn sm" id="btnOpenLink">🔍 링크 검사하기</button>
@@ -214,7 +226,7 @@
     <div class="center-pad">
       <div class="spinner"></div>
       <p class="checking-text" id="checkingText">링크 확인 중…</p>
-      <div class="lexplain" id="checkingExplain" style="text-align:left;max-width:320px">💡 L1 설명 — 주소(도메인)가 진짜 은행 사이트인지 먼저 확인해요.</div>
+      <div class="lexplain" id="checkingExplain" style="text-align:left;max-width:320px">💡 L1 — 주소(도메인)가 진짜 은행 사이트인지 먼저 확인해요.</div>
     </div>
   </section>
 
@@ -285,7 +297,7 @@
       <div class="confirm-row"><span>받는 계좌</span><b id="cfAcct"></b></div>
       <div class="confirm-row"><span>금액</span><b id="cfAmt"></b></div>
     </div>
-    <div class="lexplain">💡 L3 설명 — 버튼을 누르는 순간의 손 움직임(속도·흔들림)을 보고 사람 손인지, 원격 프로그램인지 구분해요.</div>
+    <div class="lexplain">💡 L3 — 버튼을 누르는 순간의 손 움직임(속도·흔들림)을 보고 사람 손인지, 원격 프로그램인지 구분해요.</div>
     <button class="btn" id="btnTransfer">이체하기</button>
     <button class="btn ghost sm" id="btnBackTransfer">이전으로</button>
     <div id="verdictSlot"></div>
@@ -305,7 +317,7 @@
 <!-- trace-draw modal — runs before the shake, still under L4 -->
 <div class="modal" id="traceModal"><div class="sheet">
   <h3><span class="pill layer" style="margin-right:6px">L4</span>궤적으로 본인 확인</h3>
-  <p class="lexplain" style="text-align:left">💡 L4 설명 — <b>시작점</b>에서 <b>끝점</b>까지 손가락으로 그어보세요. 사람 손은 자연스러운 곡선을, 원격 커서는 딱딱한 직선을 그립니다.</p>
+  <p class="lexplain" style="text-align:left">💡 L4 — <b>시작점</b>에서 <b>끝점</b>까지 손가락으로 그어보세요. 사람 손은 자연스러운 곡선을, 원격 커서는 딱딱한 직선을 그립니다.</p>
   <div class="trace-wrap"><canvas id="flowPad"></canvas></div>
   <p class="foot" id="traceMsg" style="min-height:16px">시작점에서 끝점까지 이어서 그어주세요.</p>
   <button class="btn ghost" id="btnSkipTrace">건너뛰고 흔들기로</button>
@@ -314,7 +326,7 @@
 <!-- shake modal -->
 <div class="modal" id="shakeModal"><div class="sheet">
   <h3><span class="pill layer" style="margin-right:6px">L4</span>이번엔 흔들어서 확인</h3>
-  <p class="lexplain" style="text-align:left">💡 L4 설명 — <b>기기를 가볍게 흔들어</b> 주세요. 화면 너머에서 원격으로 조작 중이라면 진짜 폰을 흔들 수 없어요.</p>
+  <p class="lexplain" style="text-align:left">💡 L4 — <b>기기를 가볍게 흔들어</b> 주세요. 화면 너머에서 원격으로 조작 중이라면 진짜 폰을 흔들 수 없어요.</p>
   <span class="phone-shake" id="phoneShakeIcon">📱</span>
   <div class="ring" id="shakeRing"><b id="shakePct">0%</b><small id="shakeTimer">4.0s</small></div>
   <div class="meter"><i id="shakeBar"></i></div>
@@ -725,6 +737,13 @@ function renderDashboard(){
 }
 document.getElementById('btnDash').onclick=()=>{renderDashboard();$('#dashDrawer').classList.add('show');};
 document.getElementById('btnDashClose').onclick=()=>$('#dashDrawer').classList.remove('show');
+// message bubble grows to fit its content — no inner scrollbar, ever
+const msgTextEl=document.getElementById('msgText');
+function autosizeMsg(){msgTextEl.style.height='auto';msgTextEl.style.height=msgTextEl.scrollHeight+'px';}
+msgTextEl.addEventListener('input',autosizeMsg);
+window.addEventListener('resize',autosizeMsg);
+autosizeMsg();
+
 document.getElementById('btnAiAnalyze').onclick=async()=>{
   const text=$('#msgText').value.trim();
   const btn=$('#btnAiAnalyze'),box=$('#aiResult');
@@ -764,7 +783,7 @@ document.getElementById('btnOpenLink').onclick=async()=>{
 async function runLinkCheck(url){
   const tags=[];let l1verdict=null,l2verdict=null;
   $('#checkingText').innerHTML='<span class="pill layer">L1</span> 링크(도메인) 검사 중…';
-  $('#checkingExplain').innerHTML='💡 L1 설명 — 주소(도메인)가 진짜 은행 사이트인지 먼저 확인해요.';
+  $('#checkingExplain').innerHTML='💡 L1 — 주소(도메인)가 진짜 은행 사이트인지 먼저 확인해요.';
   try{
     const l1=await postJSON('/api/l1/check',{url});
     l1verdict=l1.verdict;
@@ -772,7 +791,7 @@ async function runLinkCheck(url){
     tags.push(...[f.brandLookalike&&'브랜드 유사 도메인',f.brandPlusGenericWord&&'브랜드+의심 단어 조합',f.isPunycode&&'punycode 도메인',f.isSuspiciousTld&&'의심스러운 도메인 확장자',f.isShortener&&'단축 URL',f.isIp&&'IP 주소 직접 사용'].filter(Boolean));
   }catch(e){/* L1 unreachable — judged on L2 alone below */}
   $('#checkingText').innerHTML='<span class="pill layer">L2</span> 랜딩페이지 검사 중…';
-  $('#checkingExplain').innerHTML='💡 L2 설명 — 실제로 그 페이지를 열어서 가짜 은행 로그인 화면인지 확인해요.';
+  $('#checkingExplain').innerHTML='💡 L2 — 실제로 그 페이지를 열어서 가짜 은행 로그인 화면인지 확인해요.';
   try{
     const l2=await postJSON('/api/l2/check',{url});
     l2verdict=l2.verdict;
