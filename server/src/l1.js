@@ -15,7 +15,13 @@ const BRANDS = [
   'kbstar', 'kbcard', 'kb', 'shinhan', 'wooribank', 'woori', 'hanabank', 'hana',
   'nonghyup', 'nhbank', 'nh', 'ibk', 'kakaobank', 'kakao', 'tossbank', 'toss',
   'kbank', 'citibank', 'citi', 'scbank', 'suhyup', 'busanbank', 'dgb', 'kdb',
-  'samsungcard', 'samsung', 'hyundaicard', 'hyundai', 'lottecard', 'lotte', 'bccard', 'bc'
+  'samsungcard', 'samsung', 'hyundaicard', 'hyundai', 'lottecard', 'lotte', 'bccard', 'bc',
+  // Fictional brand used by the in-app demo scenario (server/public/index.html's
+  // sample SMS impersonates this instead of a real bank) — keeps the demo's
+  // default phishing link self-consistently flagged without touching a real
+  // bank's name. Real-domain evaluation (scripts/eval_l1_model.js) is
+  // unaffected since this token doesn't collide with any real-world domain.
+  'danggeunbank', 'danggeun'
 ];
 const OFFICIAL_DOMAINS = new Set([
   'kbstar.com', 'kbcard.com', 'shinhan.com', 'wooribank.com', 'hanabank.com',

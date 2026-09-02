@@ -109,6 +109,7 @@
   .acct-card.sel{border-color:var(--cyan);background:#e7f6f9}
   .acct-bank{font-size:11px;color:var(--mut)}
   .acct-num{font-family:var(--mono);font-size:14.5px;font-weight:700}
+  .acct-owner{font-size:11px;color:var(--mut)}
   .acct-bal{font-size:11.5px;color:var(--mut)}
   .banks{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:6px}
   .banks button{padding:11px 4px;border-radius:9px;border:1.5px solid var(--line);background:var(--panel2);color:var(--ink);font-size:12.5px}
@@ -195,9 +196,9 @@
       <div class="steps"><span>L0 문자</span><span>L1 링크</span><span>L2 페이지</span><span>L3 손동작</span><span>L4 실물 확인</span></div>
     </div>
     <div class="sms">
-      <div class="sms-head">📩 [국민은행] 문자 도착 <span class="pill layer">L0</span></div>
+      <div class="sms-head">📩 [당근은행] 문자 도착 <span class="pill layer">L0</span></div>
       <textarea class="t" id="msgText" rows="4" style="resize:vertical;font-family:var(--sans);line-height:1.6;font-size:14.5px">[Web발신] 고객님 명의로 비정상 로그인이 감지되었습니다. 본인확인이 필요합니다.
-아래 링크에서 즉시 확인해주세요: https://kb-bank-secure.tk/login</textarea>
+아래 링크에서 즉시 확인해주세요: https://danggeun-bank-secure.tk/login</textarea>
       <div class="lexplain"><b>💡 L0 설명</b> — 링크를 열기 전에, 문자 <b>내용</b>만 AI가 읽고 전형적인 사기 문구인지 알려줘요.</div>
       <div class="btnrow">
         <button class="btn ghost sm" id="btnAiAnalyze">🤖 AI로 문자 분석</button>
@@ -239,13 +240,15 @@
       <h2>보내는 계좌</h2>
       <div id="acctList">
         <button class="acct-card sel" data-a="0">
-          <span class="acct-bank">KB국민은행</span>
+          <span class="acct-bank">당근은행</span>
           <span class="acct-num">110-482-771903</span>
+          <span class="acct-owner">예금주 김도윤</span>
           <span class="acct-bal">잔액 3,240,000원</span>
         </button>
         <button class="acct-card" data-a="1">
-          <span class="acct-bank">토스뱅크</span>
+          <span class="acct-bank">구름은행</span>
           <span class="acct-num">1000-1234-5678</span>
+          <span class="acct-owner">예금주 김도윤</span>
           <span class="acct-bal">잔액 850,000원</span>
         </button>
       </div>
@@ -254,9 +257,9 @@
       <h2>받는 계좌</h2>
       <label class="f">은행 선택</label>
       <div class="banks" id="bankGrid">
-        <button data-b="국민은행">국민</button><button data-b="신한은행">신한</button><button data-b="우리은행">우리</button>
-        <button data-b="하나은행">하나</button><button data-b="농협은행">농협</button><button data-b="카카오뱅크">카카오뱅크</button>
-        <button data-b="토스뱅크">토스뱅크</button><button data-b="IBK기업은행">IBK기업</button><button data-b="케이뱅크">케이뱅크</button>
+        <button data-b="당근은행">당근은행</button><button data-b="토끼뱅크">토끼뱅크</button><button data-b="구름은행">구름은행</button>
+        <button data-b="별빛뱅크">별빛뱅크</button><button data-b="파도은행">파도은행</button><button data-b="새싹뱅크">새싹뱅크</button>
+        <button data-b="든든은행">든든은행</button><button data-b="알파카뱅크">알파카뱅크</button><button data-b="무지개은행">무지개은행</button>
       </div>
       <label class="f">계좌번호</label>
       <input class="t" id="rAcct" inputmode="numeric" placeholder="계좌번호 입력">
@@ -700,7 +703,7 @@ function renderRecordCard(rec){
       <span class="rec-badge ${rec.authorized?'ok':'no'}">${rec.authorized?'승인':'차단'}</span>
       <span class="rec-meta">${fmtTs(rec.ts)}</span>
     </div>
-    <div class="rec-sum">${escapeHtml(rec.amount||'')}원 → ${escapeHtml(rec.bank||'')} ${escapeHtml(rec.acct||'')} · 위험도 ${scoreDec} · ${band==='high'?'고위험':band==='mid'?'주의':'저위험'}${rec.payload&&rec.payload.requireChallenge?' → 물리 챌린지 요구':''}</div>`;
+    <div class="rec-sum">${escapeHtml(rec.amount||'')}원 → ${escapeHtml(rec.recipientOwner||(rec.bank+' '+rec.acct)||'')} · 위험도 ${scoreDec} · ${band==='high'?'고위험':band==='mid'?'주의':'저위험'}${rec.payload&&rec.payload.requireChallenge?' → 물리 챌린지 요구':''}</div>`;
   html+=metricRow('터치-IMU 정합',im.impulseRatio!=null?1-im.impulseRatio:0,im.impulseRatio!=null?im.impulseRatio:'—');
   html+=metricRow('기기 정지도',im.base!=null?Math.min(1,im.base/2):0,im.base!=null?im.base:'—');
   html+=metricRow('IMU 신호',im.tapCount!=null?1:0,im.tapCount!=null?'present':'absent');
@@ -790,8 +793,8 @@ document.getElementById('btnBlockedHome').onclick=()=>showScreen('intro');
 document.getElementById('btnBlockedOverride').onclick=()=>showScreen('transfer');
 
 /* ---- transfer form ---- */
-const ACCTS=[{bank:'KB국민은행',num:'110-482-771903'},{bank:'토스뱅크',num:'1000-1234-5678'}];
-let selAcctIdx=0,selBank=null;
+const ACCTS=[{bank:'당근은행',num:'110-482-771903',owner:'김도윤'},{bank:'구름은행',num:'1000-1234-5678',owner:'김도윤'}];
+let selAcctIdx=0,selBank=null,recipientOwner='';
 document.querySelectorAll('.acct-card').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.acct-card').forEach(x=>x.classList.remove('sel'));
   b.classList.add('sel');selAcctIdx=+b.dataset.a;
@@ -803,17 +806,17 @@ document.querySelectorAll('#bankGrid button').forEach(b=>b.onclick=()=>{
 document.getElementById('rAcct').addEventListener('input',e=>{
   const v=e.target.value.replace(/[^\d]/g,''),box=$('#ownerCheck');
   if(v.length>=10){box.style.color='var(--mut)';box.textContent='예금주 확인 중…';
-    clearTimeout(window.__ownerT);window.__ownerT=setTimeout(()=>{box.style.color='var(--green)';box.textContent='예금주: 홍*동 (확인됨)';},500);
-  }else{clearTimeout(window.__ownerT);box.textContent='';}
+    clearTimeout(window.__ownerT);window.__ownerT=setTimeout(()=>{recipientOwner='홍*동';box.style.color='var(--green)';box.textContent='예금주: '+recipientOwner+' (확인됨)';},500);
+  }else{recipientOwner='';clearTimeout(window.__ownerT);box.textContent='';}
 });
 document.querySelectorAll('.amt button').forEach(b=>b.addEventListener('click',()=>{const add=+b.dataset.a,el=$('#amt');let cur=+String(el.value).replace(/[^\d]/g,'')||0;cur=add===0?0:cur+add;el.value=cur.toLocaleString('ko-KR');}));
 document.getElementById('btnNext').onclick=()=>{
   if(!selBank){$('#ownerCheck').style.color='var(--red)';$('#ownerCheck').textContent='받는 은행을 선택해주세요';return;}
   if(!$('#rAcct').value.trim()){$('#ownerCheck').style.color='var(--red)';$('#ownerCheck').textContent='계좌번호를 입력해주세요';return;}
   const a=ACCTS[selAcctIdx];
-  $('#cfSend').textContent=`${a.bank} ${a.num}`;
+  $('#cfSend').textContent=`${a.bank} ${a.num} (예금주 ${a.owner})`;
   $('#cfBank').textContent=selBank;
-  $('#cfAcct').textContent=$('#rAcct').value.trim();
+  $('#cfAcct').textContent=$('#rAcct').value.trim()+(recipientOwner?` (예금주 ${recipientOwner})`:'');
   $('#cfAmt').textContent=($('#amt').value||'0')+'원';
   $('#verdictSlot').innerHTML='';
   showScreen('confirm');
@@ -843,7 +846,7 @@ function concludeTransfer(ok,title,sub,shakeInfo,traceInfo,riskBlock){
   if(riskBlock===undefined)riskBlock=!ok;
   const rec=pendingRecord?{
     id:'r'+Date.now()+Math.random().toString(36).slice(2,7),kind:'transfer',ts:Date.now(),
-    amount:pendingRecord.amount,bank:pendingRecord.bank,acct:pendingRecord.acct,
+    amount:pendingRecord.amount,bank:pendingRecord.bank,acct:pendingRecord.acct,recipientOwner:pendingRecord.recipientOwner,
     payload:pendingRecord.payload,rows:pendingRecord.rows,imuMeta:pendingRecord.imuMeta,
     mouseRatio:pendingRecord.mouseRatio,noDetailRatio:pendingRecord.noDetailRatio,
     shake:shakeInfo||null,trace:traceInfo||null,authorized:ok,title
@@ -866,7 +869,7 @@ document.getElementById('btnTransfer').onclick=async()=>{
   renderVerdict(decision);
   const mouseTaps=rt.filter(x=>x.ptype==='mouse').length,noDetailTaps=rt.filter(x=>x.noDetail).length;
   pendingRecord={
-    amount:$('#amt').value,bank:$('#cfBank').textContent,acct:$('#cfAcct').textContent,
+    amount:$('#amt').value,bank:$('#cfBank').textContent,acct:$('#rAcct').value.trim(),recipientOwner,
     payload:decision.payload,rows:decision.rows,imuMeta:decision.imuMeta,
     mouseRatio:rt.length?+(mouseTaps/rt.length).toFixed(3):0,
     noDetailRatio:rt.length?+(noDetailTaps/rt.length).toFixed(3):0,
@@ -1005,7 +1008,7 @@ document.getElementById('btnSimShake').onclick=()=>{
 
 document.getElementById('btnRestart').onclick=()=>{
   $('#rAcct').value='';$('#ownerCheck').textContent='';$('#verdictSlot').innerHTML='';
-  document.querySelectorAll('#bankGrid button').forEach(x=>x.classList.remove('sel'));selBank=null;
+  document.querySelectorAll('#bankGrid button').forEach(x=>x.classList.remove('sel'));selBank=null;recipientOwner='';
   $('#resultWarn').style.display='none';$('#resultWarn').innerHTML='';$('#btnGoDash').style.display='none';
   showScreen('intro');
 };
