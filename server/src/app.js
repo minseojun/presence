@@ -104,21 +104,39 @@ app.post('/api/session/challenge-result', (req, res) => {
   // so a near-zero baseline (phone dead still) doesn't make everything count
   const relativeThreshold = Math.max(base * 4, base + 3);
 
-  // Reported bug: a car on a rough road (or a single speed bump) produces one
-  // short burst of samples that all clear a magnitude threshold at once —
-  // 60Hz sampling turns one ~150ms bump into 9+ "qualifying" samples, which
-  // used to satisfy SHAKE_HITS_REQUIRED=3 outright with zero deliberate
-  // shaking. A real human shake is repeated back-and-forth motion spread
-  // over the window, not one instant — so count temporally-separated BURSTS
-  // (samples >=150ms apart start a new burst) instead of raw sample count.
-  // This is exactly the scenario the reporter hit: sitting in a moving car
-  // while being socially engineered into a transfer is a common real
-  // voice-phishing pattern, so ambient vehicle vibration defeating the
-  // physical-presence check is a real bypass, not just a UX nuisance.
-  const BURST_GAP_MS = 150;
-  const qualifyingTimes = imuSamples.filter(s => (s.mag || 0) >= relativeThreshold).map(s => s.t).sort((a, b) => a - b);
-  let bursts = 0, lastT = -Infinity;
-  for (const t of qualifyingTimes) { if (t - lastT > BURST_GAP_MS) bursts++; lastT = t; }
+  // Reported bug (fixed once): a car on a rough road (or a single speed
+  // bump) produces one short burst of samples that all clear a magnitude
+  // threshold at once — 60Hz sampling turns one ~150ms bump into 9+
+  // "qualifying" samples, which used to satisfy SHAKE_HITS_REQUIRED=3
+  // outright with zero deliberate shaking. The original fix counted
+  // temporally-separated RUNS of qualifying samples (a new run starts once
+  // >150ms has passed since the last qualifying sample) instead of raw
+  // sample count.
+  //
+  // That undercounted a real vigorous shake, though (reported separately):
+  // during genuine continuous back-and-forth shaking, magnitude often never
+  // drops back below the relative threshold between reps — the whole 4s
+  // shake reads as ONE uninterrupted qualifying run, so it could only ever
+  // register 1 "burst" no matter how many times the phone actually reversed
+  // direction. What actually distinguishes repeated shaking from a single
+  // jolt is the number of distinct PEAKS (local maxima) in the signal, not
+  // whether it dips below threshold between them — so count local maxima at
+  // least MIN_PEAK_GAP_MS apart instead. A real hand shake oscillates at
+  // roughly 2-6Hz (166-500ms period); a single momentary bump is one ~150ms
+  // spike with nowhere near enough span to produce 3 peaks that far apart.
+  // MIN_PEAK_GAP_MS=90 keeps generous headroom above a fast 6Hz shake while
+  // still requiring genuinely separated peaks, not sensor jitter.
+  const MIN_PEAK_GAP_MS = 90;
+  const samples = imuSamples.slice().sort((a, b) => (a.t || 0) - (b.t || 0));
+  let bursts = 0, lastPeakT = -Infinity;
+  for (let i = 0; i < samples.length; i++) {
+    const mag = samples[i].mag || 0;
+    if (mag < relativeThreshold) continue;
+    const prevMag = i > 0 ? (samples[i - 1].mag || 0) : -Infinity;
+    const nextMag = i < samples.length - 1 ? (samples[i + 1].mag || 0) : -Infinity;
+    const isLocalMax = mag >= prevMag && mag >= nextMag;
+    if (isLocalMax && samples[i].t - lastPeakT > MIN_PEAK_GAP_MS) { bursts++; lastPeakT = samples[i].t; }
+  }
   const shakeOK = imuSamples.length > 0 && bursts >= SHAKE_HITS_REQUIRED;
 
   // Optional L4 step 1 (added alongside the shake): the client also streams
