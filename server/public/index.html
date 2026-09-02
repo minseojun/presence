@@ -19,6 +19,7 @@
   header{padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(245,246,248,.9);backdrop-filter:blur(8px);z-index:10;display:flex;align-items:center;justify-content:space-between;gap:10px}
   .brand{display:flex;align-items:baseline;gap:9px}
   .brand h1{font-size:16px;letter-spacing:.2em;margin:0;font-weight:800}
+  .step-ind{font-family:var(--mono);font-size:10.5px;color:var(--mut);letter-spacing:.02em}
   main{padding:14px 16px 84px}
   .screen{display:none}.screen.active{display:block;animation:fade .2s ease}
   .view{display:none}.view.active{display:block;animation:fade .2s ease}
@@ -129,36 +130,82 @@
   .chip{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:2px}
   .chip b{color:var(--ink);font-size:13px;font-weight:600}
   .chip span{color:var(--mut);text-transform:uppercase;letter-spacing:.07em;font-size:8.5px}
+
+  /* ---- simple L-level explanation callout ---- */
+  .lexplain{background:var(--green-bg);border:1px solid var(--green-line);border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.55;color:#1a5c34;margin:10px 0}
+  .lexplain b{color:#0f7a3d}
+
+  /* ---- "call your bank" warning shown whenever a stage blocks ---- */
+  .bank-warn{background:var(--red-bg);border:1px solid var(--red-line);border-radius:12px;padding:14px 15px;margin:0 0 14px;text-align:center}
+  .bank-warn .t{font-size:14px;font-weight:800;color:var(--red);margin-bottom:5px}
+  .bank-warn .d{font-size:12px;color:#8a2f2f;line-height:1.6}
+  .bank-warn .tel{display:inline-block;margin-top:8px;font-family:var(--mono);font-size:13px;font-weight:700;color:var(--red);background:#fff;border:1px solid var(--red-line);border-radius:8px;padding:6px 12px}
+
+  /* ---- merged message screen button row ---- */
+  .btnrow{display:flex;gap:8px;margin-top:10px}
+  .btnrow .btn{flex:1;margin-top:0}
+
+  /* ---- L4 trajectory-draw step ---- */
+  .trace-wrap{background:#0a1119;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:4px 0 10px}
+  #flowPad{width:100%;display:block;touch-action:none}
+
+  /* ---- L4 shake: cute wobbling phone ---- */
+  .phone-shake{font-size:46px;text-align:center;margin:0 0 6px;display:block;animation:phoneWobble .5s ease-in-out infinite;transform-origin:50% 80%}
+  @keyframes phoneWobble{
+    0%{transform:rotate(0deg) translateX(0)}
+    20%{transform:rotate(calc(-9deg * var(--shake-amp,.4))) translateX(calc(-3px * var(--shake-amp,.4)))}
+    40%{transform:rotate(calc(8deg * var(--shake-amp,.4))) translateX(calc(3px * var(--shake-amp,.4)))}
+    60%{transform:rotate(calc(-7deg * var(--shake-amp,.4))) translateX(calc(-2px * var(--shake-amp,.4)))}
+    80%{transform:rotate(calc(6deg * var(--shake-amp,.4))) translateX(calc(2px * var(--shake-amp,.4)))}
+    100%{transform:rotate(0deg) translateX(0)}
+  }
+
+  /* ---- dashboard (past verdict history) ---- */
+  .dash-fab{right:66px}
+  .rec-card{background:#12161d;border:1px solid #232838;border-left:4px solid var(--green);border-radius:14px;padding:16px;margin-bottom:12px;color:#e6e9f0}
+  .rec-card.block{border-left-color:var(--red)}
+  .rec-top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:8px}
+  .rec-score{font-family:var(--mono);font-size:25px;font-weight:800;color:#f5a623}
+  .rec-badge{font-family:var(--mono);font-size:10.5px;padding:3px 9px;border-radius:20px;background:#232838;color:#c8ced8}
+  .rec-badge.ok{background:#123321;color:#4ade80}
+  .rec-badge.no{background:#3a1a1a;color:#f87171}
+  .rec-meta{margin-left:auto;font-size:10.5px;color:#7c8494}
+  .rec-sum{font-size:11.5px;color:#9aa1ac;line-height:1.6;margin-bottom:10px}
+  .rec-metric{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;padding:4px 0}
+  .rec-metric .rm-l{width:110px;flex:none;color:#c8ced8}
+  .rec-metric .rm-track{flex:1;height:6px;background:#1c2230;border-radius:4px;overflow:hidden}
+  .rec-metric .rm-fill{height:100%;border-radius:4px;background:#f5a623}
+  .rec-metric .rm-v{width:58px;flex:none;text-align:right;color:#8b93a3}
+  .rec-shake{font-size:10.5px;color:#7c8494;margin-top:6px;padding-top:8px;border-top:1px solid #232838}
+  .rec-empty{text-align:center;color:var(--mut);font-size:12.5px;padding:40px 10px}
 </style>
 </head>
 <body>
 <header>
   <div class="brand"><h1>PRESENCE</h1></div>
+  <div class="step-ind" id="stepInd"></div>
 </header>
 <main>
-  <!-- 1. 문자 링크(미끼) -->
+  <!-- 1. 문자 링크(미끼) — 문자 화면 하나에 AI 분석 / 링크 검사 버튼을 함께 둠 -->
   <section class="screen active" id="s-intro">
     <div class="intro-banner">
-      <b>PRESENCE</b>는 원격조종 앱(AnyDesk 등)으로 피해자 폰을 직접 조작하는
-      보이스피싱을 막는 4단계 방어 데모입니다. 아래 화면을 그대로 따라가면
-      각 단계가 실제로 작동하는 걸 순서대로 볼 수 있습니다 — 배지가 지금
-      어느 계층이 판단 중인지 알려줍니다.
-      <div class="steps"><span>L0 문자 내용</span><span>L1 링크</span><span>L2 페이지</span><span>L3 세션 무결성</span><span>L4 물리적 챌린지</span></div>
+      <b>PRESENCE</b>는 은행 앱을 <b>원격으로 조종</b>당해 돈을 뺏기는 보이스피싱을
+      막는 5단계 검증 데모입니다. 아래 문자를 그대로 따라가 보세요 — 각 화면에
+      붙은 배지가 지금 어떤 단계가 확인 중인지 알려줍니다.
+      <div class="steps"><span>L0 문자</span><span>L1 링크</span><span>L2 페이지</span><span>L3 손동작</span><span>L4 실물 확인</span></div>
     </div>
     <div class="sms">
-      <div class="sms-head">📩 [국민은행]</div>
-      <div class="sms-body">[Web발신]<br>고객님 명의로 비정상 로그인이 감지되었습니다. 본인확인이 필요합니다.</div>
-      <input class="t" id="introUrl" style="font-size:13px" value="https://kb-bank-secure.tk/login">
-    </div>
-    <div class="card">
-      <h2>🤖 AI 문자 분석 <span class="pill layer">L0</span></h2>
-      <p class="lead">L1(링크 판정)이 URL을 보기 전에, 문자 <b>내용</b> 자체를 Claude가 사기 분석가처럼 읽고 설명합니다. 아래 텍스트를 직접 받은 의심 문자로 바꿔서 테스트해도 됩니다.</p>
-      <textarea class="t" id="aiText" rows="3" style="resize:vertical;font-family:var(--sans);line-height:1.5">[Web발신] 고객님 명의로 비정상 로그인이 감지되었습니다. 본인확인이 필요합니다. 아래 링크에서 즉시 확인해주세요.</textarea>
-      <button class="btn ghost sm" id="btnAiAnalyze">AI로 분석하기</button>
+      <div class="sms-head">📩 [국민은행] 문자 도착 <span class="pill layer">L0</span></div>
+      <textarea class="t" id="msgText" rows="4" style="resize:vertical;font-family:var(--sans);line-height:1.6;font-size:14.5px">[Web발신] 고객님 명의로 비정상 로그인이 감지되었습니다. 본인확인이 필요합니다.
+아래 링크에서 즉시 확인해주세요: https://kb-bank-secure.tk/login</textarea>
+      <div class="lexplain"><b>💡 L0 설명</b> — 링크를 열기 전에, 문자 <b>내용</b>만 AI가 읽고 전형적인 사기 문구인지 알려줘요.</div>
+      <div class="btnrow">
+        <button class="btn ghost sm" id="btnAiAnalyze">🤖 AI로 문자 분석</button>
+        <button class="btn sm" id="btnOpenLink">🔍 링크 검사하기</button>
+      </div>
       <div id="aiResult" style="display:none;margin-top:10px"></div>
     </div>
-    <button class="btn" id="btnOpenLink">링크 열기</button>
-    <p class="foot">데모용 — URL을 정상 도메인으로 바꿔서도 테스트할 수 있습니다.</p>
+    <p class="foot">데모용 — 문자 내용을 직접 받은 의심 문자로 바꿔서 테스트해도 됩니다. "링크 검사하기"는 문자 안의 링크 주소를 자동으로 찾아 검사합니다.</p>
   </section>
 
   <!-- 2. 자동 링크 판정 -->
@@ -166,6 +213,7 @@
     <div class="center-pad">
       <div class="spinner"></div>
       <p class="checking-text" id="checkingText">링크 확인 중…</p>
+      <div class="lexplain" id="checkingExplain" style="text-align:left;max-width:320px">💡 L1 설명 — 주소(도메인)가 진짜 은행 사이트인지 먼저 확인해요.</div>
     </div>
   </section>
 
@@ -175,6 +223,11 @@
     <h2 class="result-title" style="color:var(--red)">위험한 링크입니다</h2>
     <div style="text-align:center;margin-bottom:8px"><span class="pill layer">L1</span> <span class="pill layer">L2</span></div>
     <p class="result-sub" id="blockedReason"></p>
+    <div class="bank-warn">
+      <div class="t">⚠ 지금 바로 은행에 전화해서 확인하세요</div>
+      <div class="d">이 링크로 진행하지 말고, 문자에 있는 번호가 아니라 <b>카드/통장 뒷면에 적힌 대표번호</b>로 직접 전화해 본인이 요청한 게 맞는지 확인하세요.</div>
+      <span class="tel">☎ 금융감독원 보이스피싱 상담 1332</span>
+    </div>
     <button class="btn" id="btnBlockedHome">닫기</button>
     <button class="btn ghost sm" id="btnBlockedOverride">그래도 진행 (데모용)</button>
   </section>
@@ -229,6 +282,7 @@
       <div class="confirm-row"><span>받는 계좌</span><b id="cfAcct"></b></div>
       <div class="confirm-row"><span>금액</span><b id="cfAmt"></b></div>
     </div>
+    <div class="lexplain">💡 L3 설명 — 버튼을 누르는 순간의 손 움직임(속도·흔들림)을 보고 사람 손인지, 원격 프로그램인지 구분해요.</div>
     <button class="btn" id="btnTransfer">이체하기</button>
     <button class="btn ghost sm" id="btnBackTransfer">이전으로</button>
     <div id="verdictSlot"></div>
@@ -239,14 +293,26 @@
     <div class="result-icon" id="resultIcon">✓</div>
     <h2 class="result-title" id="resultTitle">이체 완료</h2>
     <p class="result-sub" id="resultSub"></p>
+    <div id="resultWarn" style="display:none"></div>
     <button class="btn ghost" id="btnRestart">처음으로</button>
+    <button class="btn ghost sm" id="btnGoDash" style="display:none">📊 이 판정 상세 보기</button>
   </section>
 </main>
 
+<!-- trace-draw modal — runs before the shake, still under L4 -->
+<div class="modal" id="traceModal"><div class="sheet">
+  <h3><span class="pill layer" style="margin-right:6px">L4</span>궤적으로 본인 확인</h3>
+  <p class="lexplain" style="text-align:left">💡 L4 설명 — <b>시작점</b>에서 <b>끝점</b>까지 손가락으로 그어보세요. 사람 손은 자연스러운 곡선을, 원격 커서는 딱딱한 직선을 그립니다.</p>
+  <div class="trace-wrap"><canvas id="flowPad"></canvas></div>
+  <p class="foot" id="traceMsg" style="min-height:16px">시작점에서 끝점까지 이어서 그어주세요.</p>
+  <button class="btn ghost" id="btnSkipTrace">건너뛰고 흔들기로</button>
+</div></div>
+
 <!-- shake modal -->
 <div class="modal" id="shakeModal"><div class="sheet">
-  <h3><span class="pill layer" style="margin-right:6px">L4</span>본인 확인이 필요합니다</h3>
-  <p>이체를 완료하려면 <b>기기를 가볍게 흔들어</b> 주세요. 원격 조작 중에는 불가능합니다.</p>
+  <h3><span class="pill layer" style="margin-right:6px">L4</span>이번엔 흔들어서 확인</h3>
+  <p class="lexplain" style="text-align:left">💡 L4 설명 — <b>기기를 가볍게 흔들어</b> 주세요. 화면 너머에서 원격으로 조작 중이라면 진짜 폰을 흔들 수 없어요.</p>
+  <span class="phone-shake" id="phoneShakeIcon">📱</span>
   <div class="ring" id="shakeRing"><b id="shakePct">0%</b><small id="shakeTimer">4.0s</small></div>
   <div class="meter"><i id="shakeBar"></i></div>
   <div id="shakeNoSensor" style="display:none">
@@ -265,7 +331,20 @@
   <button class="btn ghost" id="btnCalClose">닫기</button>
 </div></div>
 
-<div class="fab-wrap"><div class="fab-inner"><button class="dev-fab" id="btnDev" title="개발자 도구">🛠</button></div></div>
+<div class="fab-wrap"><div class="fab-inner">
+  <button class="dev-fab dash-fab" id="btnDash" title="판정 이력 대시보드">📊</button>
+  <button class="dev-fab" id="btnDev" title="개발자 도구">🛠</button>
+</div></div>
+
+<!-- 대시보드: 지난 판정 결과 기록 (이체가 성공/차단으로 끝날 때마다 자동 기록됨) -->
+<div class="drawer" id="dashDrawer"><div class="drawer-inner">
+  <div class="drawer-head">
+    <b>📊 판정 이력 대시보드</b>
+    <button class="btn ghost sm" id="btnDashClose" style="margin:0;width:auto;padding:6px 14px">닫기</button>
+  </div>
+  <p class="lead">이체가 <b>성공하거나 차단</b>되어 한 흐름이 끝날 때마다, 또는 링크가 L1/L2에서 차단될 때마다 이 화면에 자동으로 기록됩니다. 최신 기록이 맨 위에 표시됩니다.</p>
+  <div id="dashList"></div>
+</div></div>
 
 <!-- 개발자 도구: 신호 시각화 + 학습 데이터 수집 (주 플로우 밖) -->
 <div class="drawer" id="devDrawer"><div class="drawer-inner">
@@ -468,10 +547,11 @@ function onMotion(e){
 function registerTap(t,x,y,ptype,pressure,width,height){
   const hasForce=pressure>0&&pressure!==0.5,hasRadius=(width>1)||(height>1);
   const quant=Number.isInteger(x)&&Number.isInteger(y);
+  const noDetail=!hasForce&&!hasRadius;
   if(ptype==='mouse')flags.mouseSeen=true;
-  if(!hasForce&&!hasRadius)flags.noTouchDetail=true;
+  if(noDetail)flags.noTouchDetail=true;
   if(quant)flags.quantized=true;
-  TAPS.push({t,x,y,ptype,quant});trim(TAPS,t);
+  TAPS.push({t,x,y,ptype,quant,noDetail});trim(TAPS,t);
   if(rec.on)rec.taps.push({t:+(t-rec.t0).toFixed(1),x,y,ptype,quant});
   if(calMode)onCalTap(t);else tryAutoCalibrate(t);
 }
@@ -570,11 +650,80 @@ checkServer();
 
 /* ===================== narrative flow ===================== */
 const SCREENS=['intro','checking','blocked','transfer','confirm','result'];
-function showScreen(id){SCREENS.forEach(s=>$('#s-'+s).classList.toggle('active',s===id));window.scrollTo(0,0);}
+const STEP_LABEL={intro:'문자 확인',checking:'링크 검사 중…',blocked:'차단됨',transfer:'송금 정보 입력 · Step 2/4',confirm:'이체 확인 · Step 3/4',result:'결과 · Step 4/4'};
+function showScreen(id){
+  SCREENS.forEach(s=>$('#s-'+s).classList.toggle('active',s===id));
+  window.scrollTo(0,0);
+  const ind=$('#stepInd');if(ind)ind.textContent=STEP_LABEL[id]||'';
+}
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+/* ===================== 판정 이력 대시보드 =====================
+   이체가 성공/차단으로 끝나거나 링크가 L1/L2에서 막힐 때마다 자동으로
+   기록된다(브라우저 로컬 저장 — 이 데모엔 로그인 계정이 없다). */
+const HIST_KEY='presence_history';
+function loadHistory(){try{return JSON.parse(localStorage.getItem(HIST_KEY)||'[]');}catch(e){return[];}}
+function pushHistory(rec){
+  try{
+    const arr=loadHistory();arr.unshift(rec);
+    if(arr.length>30)arr.length=30;
+    localStorage.setItem(HIST_KEY,JSON.stringify(arr));
+  }catch(e){/* localStorage 불가 환경(사생활 모드 등) — 조용히 무시, 주 흐름엔 영향 없음 */}
+}
+function bankWarnHTML(){
+  return `<div class="bank-warn"><div class="t">⚠ 지금 바로 은행에 전화해서 확인하세요</div>
+    <div class="d">이 거래를 계속 진행하지 말고, <b>카드/통장 뒷면의 대표번호</b>로 직접 전화해 본인이 요청한 이체가 맞는지 확인하세요.</div>
+    <span class="tel">☎ 금융감독원 보이스피싱 상담 1332</span></div>`;
+}
+function fmtTs(ts){return new Date(ts).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});}
+function metricRow(label,frac,valueText){
+  const pct=Math.max(0,Math.min(100,(frac||0)*100));
+  return `<div class="rec-metric"><span class="rm-l">${label}</span><div class="rm-track"><div class="rm-fill" style="width:${pct}%"></div></div><span class="rm-v">${valueText}</span></div>`;
+}
+function renderRecordCard(rec){
+  if(rec.kind==='link_blocked'){
+    return `<div class="rec-card block">
+      <div class="rec-top"><span class="rec-score" style="color:var(--red);font-size:19px">차단</span><span class="rec-badge no">L1/L2</span><span class="rec-meta">${fmtTs(rec.ts)}</span></div>
+      <div class="rec-sum">${escapeHtml(rec.url||'')}<br>→ ${escapeHtml(rec.reason||'피싱 패턴과 일치')}</div>
+    </div>`;
+  }
+  const score=(rec.payload&&rec.payload.score)||0,scoreDec=(score/100).toFixed(3);
+  const band=(rec.payload&&rec.payload.band)||'low';
+  const im=rec.imuMeta||{};
+  const noDetailRatio=rec.noDetailRatio??0,mouseRatio=rec.mouseRatio??0;
+  const traj=rec.trace&&rec.trace.straightness,cv=rec.trace&&rec.trace.cv;
+  let html=`<div class="rec-card ${rec.authorized?'':'block'}">
+    <div class="rec-top">
+      <span class="rec-score">${scoreDec}</span>
+      <span class="rec-badge">${rec.payload&&rec.payload.requireChallenge?'challenge':'auto'}</span>
+      <span class="rec-badge ${rec.authorized?'ok':'no'}">${rec.authorized?'승인':'차단'}</span>
+      <span class="rec-meta">${fmtTs(rec.ts)}</span>
+    </div>
+    <div class="rec-sum">${escapeHtml(rec.amount||'')}원 → ${escapeHtml(rec.bank||'')} ${escapeHtml(rec.acct||'')} · 위험도 ${scoreDec} · ${band==='high'?'고위험':band==='mid'?'주의':'저위험'}${rec.payload&&rec.payload.requireChallenge?' → 물리 챌린지 요구':''}</div>`;
+  html+=metricRow('터치-IMU 정합',im.impulseRatio!=null?1-im.impulseRatio:0,im.impulseRatio!=null?im.impulseRatio:'—');
+  html+=metricRow('기기 정지도',im.base!=null?Math.min(1,im.base/2):0,im.base!=null?im.base:'—');
+  html+=metricRow('IMU 신호',im.tapCount!=null?1:0,im.tapCount!=null?'present':'absent');
+  html+=metricRow('mouse 계열 비율',mouseRatio,mouseRatio);
+  html+=metricRow('압력/면적 변동 부족',noDetailRatio,noDetailRatio);
+  html+=metricRow('궤적 직선성',traj!=null?Math.min(1,(traj-1)/3):0,traj!=null?traj:'—');
+  html+=metricRow('간격 양자화',cv!=null?Math.min(1,cv*2):0,cv!=null?cv:'—');
+  if(rec.shake){
+    const peak=typeof rec.shake.peak==='number'?rec.shake.peak.toFixed(2):rec.shake.peak;
+    html+=`<div class="rec-shake">흔들기: 반전 ${rec.shake.bursts}회 · 최대 ${peak} m/s² · ${rec.authorized?'통과':'실패'}</div>`;
+  }
+  html+='</div>';
+  return html;
+}
+function renderDashboard(){
+  const arr=loadHistory(),list=$('#dashList');
+  if(!arr.length){list.innerHTML='<div class="rec-empty">아직 기록이 없습니다 — 이체를 완료하거나 위험한 링크를 열어보면 여기에 자동으로 남습니다.</div>';return;}
+  list.innerHTML=arr.map(renderRecordCard).join('');
+}
+document.getElementById('btnDash').onclick=()=>{renderDashboard();$('#dashDrawer').classList.add('show');};
+document.getElementById('btnDashClose').onclick=()=>$('#dashDrawer').classList.remove('show');
 document.getElementById('btnAiAnalyze').onclick=async()=>{
-  const text=$('#aiText').value.trim();
+  const text=$('#msgText').value.trim();
   const btn=$('#btnAiAnalyze'),box=$('#aiResult');
   if(!text)return;
   btn.disabled=true;btn.textContent='분석 중…';
@@ -600,14 +749,19 @@ document.getElementById('btnAiAnalyze').onclick=async()=>{
 };
 
 document.getElementById('btnOpenLink').onclick=async()=>{
+  const text=$('#msgText').value.trim();
+  const m=text.match(/https?:\/\/\S+/);
+  const url=m?m[0].replace(/[),.]+$/,''):'';
+  if(!url){alert('문자 내용에서 링크 주소를 찾을 수 없습니다. 문자에 http(s):// 링크를 포함해주세요.');return;}
   await startSensors(); // this click doubles as the iOS permission gesture
   showScreen('checking');
-  await runLinkCheck($('#introUrl').value.trim());
+  await runLinkCheck(url);
 };
 
 async function runLinkCheck(url){
   const tags=[];let l1verdict=null,l2verdict=null;
   $('#checkingText').innerHTML='<span class="pill layer">L1</span> 링크(도메인) 검사 중…';
+  $('#checkingExplain').innerHTML='💡 L1 설명 — 주소(도메인)가 진짜 은행 사이트인지 먼저 확인해요.';
   try{
     const l1=await postJSON('/api/l1/check',{url});
     l1verdict=l1.verdict;
@@ -615,6 +769,7 @@ async function runLinkCheck(url){
     tags.push(...[f.brandLookalike&&'브랜드 유사 도메인',f.brandPlusGenericWord&&'브랜드+의심 단어 조합',f.isPunycode&&'punycode 도메인',f.isSuspiciousTld&&'의심스러운 도메인 확장자',f.isShortener&&'단축 URL',f.isIp&&'IP 주소 직접 사용'].filter(Boolean));
   }catch(e){/* L1 unreachable — judged on L2 alone below */}
   $('#checkingText').innerHTML='<span class="pill layer">L2</span> 랜딩페이지 검사 중…';
+  $('#checkingExplain').innerHTML='💡 L2 설명 — 실제로 그 페이지를 열어서 가짜 은행 로그인 화면인지 확인해요.';
   try{
     const l2=await postJSON('/api/l2/check',{url});
     l2verdict=l2.verdict;
@@ -623,7 +778,9 @@ async function runLinkCheck(url){
   const verdicts=[l1verdict,l2verdict].filter(Boolean);
   const worst=verdicts.includes('high')?'high':verdicts.includes('mid')?'mid':'low';
   if(worst==='high'){
-    $('#blockedReason').textContent=tags.length?tags.join(' · '):'이 링크는 피싱 패턴과 일치합니다.';
+    const reason=tags.length?tags.join(' · '):'이 링크는 피싱 패턴과 일치합니다.';
+    $('#blockedReason').textContent=reason;
+    pushHistory({id:'r'+Date.now()+Math.random().toString(36).slice(2,7),kind:'link_blocked',ts:Date.now(),url,reason});
     showScreen('blocked');
   }else{
     showScreen('transfer');
@@ -676,22 +833,97 @@ function goResult(ok,title,sub){
   $('#resultSub').textContent=sub||'';
   showScreen('result');
 }
+let pendingRecord=null;
+// Wraps goResult(): also (a) auto-saves this attempt into the dashboard
+// history so "지난 판정 결과" always reflects the latest run, and (b) shows
+// the "call your bank" warning whenever the stop was an actual detected-risk
+// block (server-graded authorized=false / L1-L2 block) — not on a plain
+// user-cancel or a network error, which aren't a risk finding.
+function concludeTransfer(ok,title,sub,shakeInfo,traceInfo,riskBlock){
+  if(riskBlock===undefined)riskBlock=!ok;
+  const rec=pendingRecord?{
+    id:'r'+Date.now()+Math.random().toString(36).slice(2,7),kind:'transfer',ts:Date.now(),
+    amount:pendingRecord.amount,bank:pendingRecord.bank,acct:pendingRecord.acct,
+    payload:pendingRecord.payload,rows:pendingRecord.rows,imuMeta:pendingRecord.imuMeta,
+    mouseRatio:pendingRecord.mouseRatio,noDetailRatio:pendingRecord.noDetailRatio,
+    shake:shakeInfo||null,trace:traceInfo||null,authorized:ok,title
+  }:null;
+  if(rec)pushHistory(rec);
+  pendingRecord=null;
+  const warn=$('#resultWarn'),dashBtn=$('#btnGoDash');
+  if(riskBlock){warn.style.display='block';warn.innerHTML=bankWarnHTML();}
+  else{warn.style.display='none';warn.innerHTML='';}
+  dashBtn.style.display=rec?'block':'none';
+  dashBtn.onclick=()=>{renderDashboard();$('#dashDrawer').classList.add('show');};
+  goResult(ok,title,sub);
+}
 document.getElementById('btnTransfer').onclick=async()=>{
   const t=now(),rt=TAPS.filter(x=>t-x.t<=10000),win=IMU.filter(x=>t-x.t<=10000);
   const trace=(lastTrace&&t-lastTrace.t<30000)?lastTrace:null;
   let decision;
   try{decision=await postJSON('/api/session/decision',{taps:rt,imu:win,trace,flags});}
-  catch(e){goResult(false,'서버에 연결할 수 없습니다',e.message+' — 서버 없이는 이체를 승인할 수 없습니다.');return;}
+  catch(e){concludeTransfer(false,'서버에 연결할 수 없습니다',e.message+' — 서버 없이는 이체를 승인할 수 없습니다.',null,null,false);return;}
   renderVerdict(decision);
-  if(decision.payload.requireChallenge)openShake(decision);
-  else goResult(true,'이체 완료','서버 승인 — 저위험이라 추가 확인이 필요하지 않았습니다.');
+  const mouseTaps=rt.filter(x=>x.ptype==='mouse').length,noDetailTaps=rt.filter(x=>x.noDetail).length;
+  pendingRecord={
+    amount:$('#amt').value,bank:$('#cfBank').textContent,acct:$('#cfAcct').textContent,
+    payload:decision.payload,rows:decision.rows,imuMeta:decision.imuMeta,
+    mouseRatio:rt.length?+(mouseTaps/rt.length).toFixed(3):0,
+    noDetailRatio:rt.length?+(noDetailTaps/rt.length).toFixed(3):0,
+    decision
+  };
+  if(decision.payload.requireChallenge)openTraceStep();
+  else concludeTransfer(true,'이체 완료','서버 승인 — 저위험이라 추가 확인이 필요하지 않았습니다.');
 };
+
+/* ===== L4 step 1: draw a trajectory (start dot -> end dot), then shake =====
+   Reuses the same client-side analyzeTrajectory/analyzeTiming used by the
+   dev-drawer pad. This also means the L3 "궤적/타이밍" signal — previously
+   only populated if someone happened to visit the dev drawer first — now
+   gets real data from every challenge in the main flow. */
+let flowTracePts=[],flowTracing=false,flowPadCtx=null;
+function fitFlowPad(){
+  const c=document.getElementById('flowPad');
+  const w=c.clientWidth||300,h=Math.round(Math.min(170,Math.max(120,w*0.5)));
+  c.style.height=h+'px';c.width=w*devicePixelRatio;c.height=h*devicePixelRatio;
+  flowPadCtx=c.getContext('2d');flowPadCtx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  drawFlowPadBase();
+}
+function drawFlowPadBase(){
+  const c=document.getElementById('flowPad'),ctx=flowPadCtx,W=c.clientWidth,H=c.clientHeight;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0a1119';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#16324a';[[0.15,0.75],[0.85,0.25]].forEach(([fx,fy])=>{ctx.beginPath();ctx.arc(W*fx,H*fy,13,0,7);ctx.fill();});
+  ctx.fillStyle='#3a566f';ctx.font='11px '+getComputedStyle(document.body).fontFamily;
+  ctx.fillText('시작',W*0.15-12,H*0.75+30);ctx.fillText('끝',W*0.85-8,H*0.25-18);
+}
+function flowPadPos(e){const c=document.getElementById('flowPad'),r=c.getBoundingClientRect();return{t:e.timeStamp||now(),x:e.clientX-r.left,y:e.clientY-r.top};}
+function drawFlowTrace(){
+  drawFlowPadBase();const ctx=flowPadCtx;ctx.strokeStyle='#34d3ee';ctx.lineWidth=2;ctx.beginPath();
+  flowTracePts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+}
+function finishFlowTrace(){
+  const msg=$('#traceMsg');
+  if(flowTracePts.length<6){msg.style.color='var(--amber)';msg.textContent='조금 더 길게 이어서 그어주세요.';return;}
+  const traj=analyzeTrajectory(flowTracePts),timing=analyzeTiming(flowTracePts);
+  msg.style.color='var(--green)';msg.textContent='확인했어요 — 흔들기로 넘어갑니다…';
+  const traceResult={pts:flowTracePts.slice(),straightness:traj.insufficient?null:traj.straightness,cv:timing.insufficient?null:timing.cv,pRemote:Math.max(traj.pRemote||0,timing.pRemote||0)};
+  setTimeout(()=>{$('#traceModal').classList.remove('show');openShake(pendingRecord.decision,traceResult);},650);
+}
+document.getElementById('flowPad').addEventListener('pointerdown',e=>{e.stopPropagation();flowTracing=true;flowTracePts=[flowPadPos(e)];e.target.setPointerCapture(e.pointerId);});
+document.getElementById('flowPad').addEventListener('pointermove',e=>{if(!flowTracing)return;flowTracePts.push(flowPadPos(e));drawFlowTrace();});
+document.getElementById('flowPad').addEventListener('pointerup',()=>{if(!flowTracing)return;flowTracing=false;finishFlowTrace();});
+document.getElementById('btnSkipTrace').onclick=()=>{$('#traceModal').classList.remove('show');openShake(pendingRecord.decision,null);};
+function openTraceStep(){
+  flowTracePts=[];$('#traceMsg').style.color='var(--mut)';$('#traceMsg').textContent='시작점에서 끝점까지 이어서 그어주세요.';
+  $('#traceModal').classList.add('show');
+  requestAnimationFrame(fitFlowPad);
+}
 
 /* shake — client only renders progress; the server grades the captured IMU
    window (relative to that session's own resting baseline) and issues the
    final signed authorization. */
 let shakeRAF=null,shakeNoSensorT=null,shakeCtx=null;
-function openShake(decision){
+function openShake(decision,traceResult){
   const m=$('#shakeModal');m.classList.add('show');
   const ring=$('#shakeRing'),pct=$('#shakePct'),bar=$('#shakeBar'),timer=$('#shakeTimer');
   const DUR=4000,start=now(),startWall=IMU.length?IMU[IMU.length-1].t:now();
@@ -710,11 +942,15 @@ function openShake(decision){
   $('#shakeNoSensor').style.display='none';
   clearTimeout(shakeNoSensorT);
   shakeNoSensorT=setTimeout(()=>{if(!everReceivedMotion&&m.classList.contains('show'))$('#shakeNoSensor').style.display='block';},900);
-  shakeCtx={decision,startWall,baselineSamples};
+  shakeCtx={decision,startWall,baselineSamples,traceResult};
+  const phoneIcon=$('#phoneShakeIcon');
   (function frame(){
     const t=now(),left=Math.max(0,DUR-(t-start));
     let pk=0;for(const s of IMU)if(t-s.t<=400&&s.mag>pk)pk=s.mag;
     bar.style.width=Math.min(100,pk/NEED*100)+'%';
+    // the phone icon wobbles continuously (cute, always-on) but its amplitude
+    // tracks the real accelerometer peak so it visibly reacts to the actual shake
+    phoneIcon.style.setProperty('--shake-amp',Math.max(.35,Math.min(2.4,pk/NEED)));
     // count temporally-separated BURSTS since the window opened, not raw
     // qualifying samples — a real report: a car speed bump produced one
     // ~150ms jolt that alone contains 6-9 qualifying samples at 60Hz,
@@ -726,22 +962,27 @@ function openShake(decision){
     let bursts=0,lastT=-Infinity;for(const qt of qualifyingTimes){if(qt-lastT>BURST_GAP_MS)bursts++;lastT=qt;}
     const prog=Math.min(1,bursts/CFG.shakeHits);pct.textContent=Math.round(prog*100)+'%(예상)';
     ring.style.borderColor=prog>=1?'var(--green)':pk>=NEED?'var(--cyan)':'var(--line)';timer.textContent=(left/1000).toFixed(1)+'s';
-    if((prog>=1||left<=0)&&!settled){settled=true;submitChallenge(decision,startWall,baselineSamples);return;}
+    if((prog>=1||left<=0)&&!settled){settled=true;submitChallenge(decision,startWall,baselineSamples,undefined,false,traceResult);return;}
     shakeRAF=requestAnimationFrame(frame);
   })();
 }
-async function submitChallenge(decision,startWall,baselineSamples,imuSamplesOverride,simulated){
+async function submitChallenge(decision,startWall,baselineSamples,imuSamplesOverride,simulated,traceResult){
   const imuSamples=imuSamplesOverride||IMU.filter(s=>s.t>=startWall).map(s=>({t:s.t,mag:s.mag}));
+  const tracePts=traceResult&&traceResult.pts?traceResult.pts:null;
   let outcome;
-  try{outcome=await postJSON('/api/session/challenge-result',{token:decision.payload,signature:decision.signature,imuSamples,baselineSamples});}
-  catch(e){closeShake();goResult(false,'판정 실패',e.message);return;}
+  try{outcome=await postJSON('/api/session/challenge-result',{token:decision.payload,signature:decision.signature,imuSamples,baselineSamples,tracePts});}
+  catch(e){closeShake();concludeTransfer(false,'판정 실패',e.message,null,null,false);return;}
   closeShake();
   const tag=simulated?' (센서 없는 기기 시뮬레이션)':' (서버 판정)';
-  goResult(outcome.payload.authorized,outcome.payload.authorized?'이체 완료':'이체 차단됨',
-    outcome.payload.authorized?'물리적 현존 챌린지 통과'+tag:'현존 증명 실패 — 원격 조작 가능성이 있어 차단했습니다.');
+  const peak=imuSamples.length?Math.max(...imuSamples.map(s=>s.mag||0)):0;
+  const shakeInfo={bursts:outcome.payload.energy,peak,threshold:outcome.payload.threshold};
+  const traceInfo=traceResult?{straightness:traceResult.straightness,cv:traceResult.cv,pRemote:traceResult.pRemote}:null;
+  concludeTransfer(outcome.payload.authorized,outcome.payload.authorized?'이체 완료':'이체 차단됨',
+    outcome.payload.authorized?'물리적 현존 챌린지 통과'+tag:'현존 증명 실패 — 원격 조작 가능성이 있어 차단했습니다.',
+    shakeInfo,traceInfo);
 }
 function closeShake(){if(shakeRAF)cancelAnimationFrame(shakeRAF);clearTimeout(shakeNoSensorT);$('#shakeModal').classList.remove('show');}
-document.getElementById('btnCancelShake').onclick=()=>{closeShake();goResult(false,'이체 취소됨','사용자가 취소했습니다.');};
+document.getElementById('btnCancelShake').onclick=()=>{closeShake();concludeTransfer(false,'이체 취소됨','사용자가 취소했습니다.',null,null,false);};
 // Only ever shown when this device has produced zero real devicemotion
 // events (see everReceivedMotion) — a real phone always streams motion data
 // the instant permission is granted, so this can't be used to bypass the
@@ -753,18 +994,19 @@ document.getElementById('btnCancelShake').onclick=()=>{closeShake();goResult(fal
 document.getElementById('btnSimShake').onclick=()=>{
   if(!shakeCtx)return;
   if(shakeRAF)cancelAnimationFrame(shakeRAF);
-  const{decision,startWall,baselineSamples}=shakeCtx;
+  const{decision,startWall,baselineSamples,traceResult}=shakeCtx;
   const imuSamples=[];let t=startWall;
   for(let rep=0;rep<6;rep++){
     for(let i=0;i<9;i++){imuSamples.push({t,mag:9+Math.random()*3});t+=16;}
     for(let i=0;i<10;i++){imuSamples.push({t,mag:1.8+Math.random()*0.6});t+=25;}
   }
-  submitChallenge(decision,startWall,baselineSamples,imuSamples,true);
+  submitChallenge(decision,startWall,baselineSamples,imuSamples,true,traceResult);
 };
 
 document.getElementById('btnRestart').onclick=()=>{
   $('#rAcct').value='';$('#ownerCheck').textContent='';$('#verdictSlot').innerHTML='';
   document.querySelectorAll('#bankGrid button').forEach(x=>x.classList.remove('sel'));selBank=null;
+  $('#resultWarn').style.display='none';$('#resultWarn').innerHTML='';$('#btnGoDash').style.display='none';
   showScreen('intro');
 };
 

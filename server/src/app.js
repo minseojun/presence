@@ -75,8 +75,12 @@ function computeDecision(taps, imu, trace, flags) {
 app.post('/api/session/decision', (req, res) => {
   const { taps = [], imu = [], trace = null, flags = {} } = req.body || {};
   if (!Array.isArray(taps) || !Array.isArray(imu)) return res.status(400).json({ error: 'taps[] and imu[] required' });
-  const { signed, rows } = computeDecision(taps, imu, trace, flags);
-  res.json({ ...signed, rows });
+  const { signed, rows, imuMeta } = computeDecision(taps, imu, trace, flags);
+  // imuMeta is descriptive only (median/rstd/tap counts already folded into
+  // the signed score above) — exposing it lets the client's history
+  // dashboard show real per-signal numbers instead of re-deriving its own
+  // shadow copy; it changes nothing about what's trusted for authorization.
+  res.json({ ...signed, rows, imuMeta });
 });
 
 // ---- L4: physical-presence challenge, judged server-side ----
@@ -84,7 +88,7 @@ app.post('/api/session/decision', (req, res) => {
 // server — not the client's own requestAnimationFrame loop — decides whether
 // the peak-energy threshold was met, then issues the final signed authorization.
 app.post('/api/session/challenge-result', (req, res) => {
-  const { token, signature, imuSamples = [], baselineSamples = [] } = req.body || {};
+  const { token, signature, imuSamples = [], baselineSamples = [], tracePts = null } = req.body || {};
   if (!token || !signature) return res.status(400).json({ error: 'token and signature required' });
   if (!verifyDecision(token, signature)) return res.status(401).json({ error: 'invalid-or-tampered-token' });
   if (Date.now() > token.exp) return res.status(410).json({ error: 'token-expired' });
@@ -115,9 +119,26 @@ app.post('/api/session/challenge-result', (req, res) => {
   const qualifyingTimes = imuSamples.filter(s => (s.mag || 0) >= relativeThreshold).map(s => s.t).sort((a, b) => a - b);
   let bursts = 0, lastT = -Infinity;
   for (const t of qualifyingTimes) { if (t - lastT > BURST_GAP_MS) bursts++; lastT = t; }
-  const authorized = imuSamples.length > 0 && bursts >= SHAKE_HITS_REQUIRED;
+  const shakeOK = imuSamples.length > 0 && bursts >= SHAKE_HITS_REQUIRED;
 
-  const outcome = { sessionId: token.sessionId, authorized, energy: bursts, threshold: +relativeThreshold.toFixed(2), iat: Date.now() };
+  // Optional L4 step 1 (added alongside the shake): the client also streams
+  // the points from the "connect start dot to end dot" trace drawn right
+  // before shaking. Graded the same way L3 already grades a trace (server
+  // recomputes it here rather than trusting the client's own verdict) — a
+  // strongly straight-line, mechanically-timed trace is remote-cursor-shaped
+  // even if the shake itself passes, so it can veto authorization on its
+  // own. Optional/backward-compatible: no tracePts (older client, or the
+  // "건너뛰기" skip button) just skips this check rather than blocking.
+  let trajectory = null;
+  if (Array.isArray(tracePts) && tracePts.length >= 6) {
+    const traj = risk.analyzeTrajectory(tracePts);
+    const timing = risk.analyzeTiming(tracePts);
+    const pRemote = Math.max(traj.pRemote || 0, timing.pRemote || 0);
+    trajectory = { straightness: traj.straightness, cv: timing.insufficient ? null : timing.cv, pRemote, ok: pRemote < 0.6 };
+  }
+  const authorized = shakeOK && (trajectory ? trajectory.ok : true);
+
+  const outcome = { sessionId: token.sessionId, authorized, energy: bursts, threshold: +relativeThreshold.toFixed(2), trajectory, iat: Date.now() };
   res.json(signDecision(outcome));
 });
 
