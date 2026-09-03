@@ -89,6 +89,10 @@
   .intro-banner b{color:#fff}
   .intro-banner .steps{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
   .intro-banner .steps span{font-family:var(--mono);font-size:9.5px;padding:2px 7px;border-radius:20px;background:rgba(255,255,255,.08);color:#9fe6f2}
+  .scenario-card{text-align:center;padding:26px 4px 8px}
+  .scenario-icon{font-size:46px;margin-bottom:10px}
+  .scenario-card h2{font-size:19px;margin:0 0 10px}
+  .scenario-card>p{font-size:13px;color:var(--mut);line-height:1.65;margin:0 0 18px;padding:0 6px}
   code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:4px;color:var(--cyan);font-size:11px}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);display:inline-block;vertical-align:middle;margin-right:4px}
   .dot.on{background:var(--green);box-shadow:0 0 5px var(--green)}
@@ -195,14 +199,27 @@
   <div class="step-ind" id="stepInd"></div>
 </header>
 <main>
-  <!-- 1. 문자 링크(미끼) — 문자 화면 하나에 AI 분석 / 링크 검사 버튼을 함께 둠 -->
-  <section class="screen active" id="s-intro">
-    <div class="intro-banner">
-      <b>PRESENCE</b>는 은행 앱을 <b>원격으로 조종</b>당해 돈을 뺏기는 보이스피싱을
-      막는 5단계 검증 데모입니다. 아래 문자를 그대로 따라가 보세요 — 각 화면에
-      붙은 배지가 지금 어떤 단계가 확인 중인지 알려줍니다.
-      <div class="steps"><span>L0 문자</span><span>L1 링크</span><span>L2 페이지</span><span>L3 손동작</span><span>L4 실물 확인</span></div>
+  <!-- 0. 상황극 인트로 — 다음 화면(L0 문자)이 "여기에 직접 문자를 입력/붙여넣는 곳"으로
+       오해되지 않도록, 이건 시뮬레이션이고 문자는 이미 와있는 상태라는 걸 먼저 짚어줌 -->
+  <section class="screen active" id="s-scenario">
+    <div class="scenario-card">
+      <div class="scenario-icon">📱</div>
+      <h2>지금, 문자 한 통을 받았습니다</h2>
+      <p>이 데모는 보이스피싱 상황을 처음부터 끝까지 체험하는 시뮬레이션입니다.
+        다음 화면의 문자는 이미 와있는 상태예요 — <b>직접 입력하거나 붙여넣을 필요 없이</b>
+        그대로 눌러서 진행하면 됩니다.</p>
+      <div class="intro-banner" style="text-align:left">
+        <b>PRESENCE</b>는 은행 앱을 <b>원격으로 조종</b>당해 돈을 뺏기는 보이스피싱을
+        막는 5단계 검증 데모입니다. 각 화면에 붙은 배지가 지금 어떤 단계가 확인
+        중인지 알려줍니다.
+        <div class="steps"><span>L0 문자</span><span>L1 링크</span><span>L2 페이지</span><span>L3 손동작</span><span>L4 실물 확인</span></div>
+      </div>
+      <button class="btn" id="btnStartScenario">문자 확인하기 →</button>
     </div>
+  </section>
+
+  <!-- 1. 문자 링크(미끼) — 문자 화면 하나에 AI 분석 / 링크 검사 버튼을 함께 둠 -->
+  <section class="screen" id="s-intro">
     <div class="sms">
       <div class="sms-toprow"><span class="pill layer">L0</span></div>
       <div class="sms-head">
@@ -664,8 +681,8 @@ async function checkServer(){
 checkServer();
 
 /* ===================== narrative flow ===================== */
-const SCREENS=['intro','checking','blocked','transfer','confirm','result'];
-const STEP_LABEL={intro:'문자 확인',checking:'링크 검사 중…',blocked:'차단됨',transfer:'송금 정보 입력 · Step 2/4',confirm:'이체 확인 · Step 3/4',result:'결과 · Step 4/4'};
+const SCREENS=['scenario','intro','checking','blocked','transfer','confirm','result'];
+const STEP_LABEL={scenario:'시나리오 안내',intro:'문자 확인',checking:'링크 검사 중…',blocked:'차단됨',transfer:'송금 정보 입력 · Step 2/4',confirm:'이체 확인 · Step 3/4',result:'결과 · Step 4/4'};
 function showScreen(id){
   SCREENS.forEach(s=>$('#s-'+s).classList.toggle('active',s===id));
   window.scrollTo(0,0);
@@ -743,6 +760,8 @@ function autosizeMsg(){msgTextEl.style.height='auto';msgTextEl.style.height=msgT
 msgTextEl.addEventListener('input',autosizeMsg);
 window.addEventListener('resize',autosizeMsg);
 autosizeMsg();
+
+document.getElementById('btnStartScenario').onclick=()=>showScreen('intro');
 
 document.getElementById('btnAiAnalyze').onclick=async()=>{
   const text=$('#msgText').value.trim();
@@ -1219,6 +1238,7 @@ function loop(){
   if($('#devDrawer').classList.contains('show')&&$('#v-lab').classList.contains('active'))drawScope();
   requestAnimationFrame(loop);
 }
+showScreen('scenario');
 fitAll();loop();
 </script>
 </body>
