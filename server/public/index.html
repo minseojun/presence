@@ -108,7 +108,7 @@
   .sms-who span{font-size:10.5px;color:var(--dim)}
   .bubble-wrap{position:relative;max-width:92%}
   .bubble-wrap::before{content:'';position:absolute;left:-5px;bottom:8px;width:14px;height:14px;background:#e9e9eb;border-bottom-right-radius:12px;clip-path:polygon(100% 0,100% 100%,0 100%)}
-  textarea.bubble{position:relative;display:block;width:100%;box-sizing:border-box;background:#e9e9eb;color:#111;border:none;border-radius:18px 18px 18px 5px;padding:11px 14px;font-size:15px;line-height:1.55;font-family:var(--sans);resize:none;overflow:hidden;outline:none}
+  textarea.bubble{position:relative;display:block;width:100%;box-sizing:border-box;background:#e9e9eb;color:#111;border:none;border-radius:18px 18px 18px 5px;padding:11px 14px;font-size:15px;line-height:1.55;font-family:var(--sans);resize:none;overflow:hidden;outline:none;min-height:96px}
   textarea.bubble:focus{box-shadow:0 0 0 2px var(--cyan)}
   .center-pad{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:56vh;gap:16px;text-align:center}
   .spinner{width:38px;height:38px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--cyan);animation:spin .8s linear infinite}
@@ -242,6 +242,7 @@
       <div class="spinner"></div>
       <p class="checking-text" id="checkingText">링크 확인 중…</p>
       <div class="lexplain" id="checkingExplain" style="text-align:left;max-width:320px">💡 L1 — 주소(도메인)가 진짜 은행 사이트인지 먼저 확인해요.</div>
+      <button class="btn ghost sm" id="btnCancelCheck" style="max-width:320px">취소</button>
     </div>
   </section>
 
@@ -256,7 +257,7 @@
       <div class="d">이 링크로 진행하지 말고, 문자에 있는 번호가 아니라 <b>카드/통장 뒷면에 적힌 대표번호</b>로 직접 전화해 본인이 요청한 게 맞는지 확인하세요.</div>
       <span class="tel">☎ 금융감독원 보이스피싱 상담 1332</span>
     </div>
-    <button class="btn" id="btnBlockedHome">닫기</button>
+    <button class="btn" id="btnBlockedHome">처음으로</button>
     <button class="btn ghost sm" id="btnBlockedOverride">그래도 진행 (데모용)</button>
   </section>
 
@@ -465,6 +466,24 @@ function mad(a,m){return median(a.map(x=>Math.abs(x-m)));}
 const mean=a=>a.reduce((s,x)=>s+x,0)/(a.length||1);
 const stdev=a=>{const m=mean(a);return Math.sqrt(mean(a.map(x=>(x-m)**2)));};
 const dist=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y);
+// Client-side mirror of the server's shake-peak counter (server/src/app.js) —
+// used only to render the live "%(예상)" progress estimate during the shake
+// challenge. Counts local-maxima peaks at least MIN_PEAK_GAP_MS apart instead
+// of gap-separated runs, so a real continuous shake (magnitude often never
+// drops back below threshold between reps) isn't undercounted on screen.
+function countShakePeaks(samples,threshold){
+  const MIN_PEAK_GAP_MS=90;
+  let peaks=0,lastPeakT=-Infinity;
+  for(let i=0;i<samples.length;i++){
+    const mag=samples[i].mag||0;
+    if(mag<threshold)continue;
+    const prevMag=i>0?(samples[i-1].mag||0):-Infinity;
+    const nextMag=i<samples.length-1?(samples[i+1].mag||0):-Infinity;
+    const isLocalMax=mag>=prevMag&&mag>=nextMag;
+    if(isLocalMax&&samples[i].t-lastPeakT>MIN_PEAK_GAP_MS){peaks++;lastPeakT=samples[i].t;}
+  }
+  return peaks;
+}
 const $=s=>document.querySelector(s);
 
 /* ===== calibratable config ===== */
@@ -685,6 +704,11 @@ function showScreen(id){
   SCREENS.forEach(s=>$('#s-'+s).classList.toggle('active',s===id));
   window.scrollTo(0,0);
   const ind=$('#stepInd');if(ind)ind.textContent=STEP_LABEL[id]||'';
+  // The message bubble auto-sizes to its content via scrollHeight, but that
+  // reads as ~0 while its screen is display:none (e.g. the very first
+  // autosizeMsg() call at page load runs while #s-intro is still hidden
+  // behind the scenario screen) — recompute now that it's actually visible.
+  if(id==='intro')autosizeMsg();
 }
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -787,6 +811,11 @@ document.getElementById('btnAiAnalyze').onclick=async()=>{
   btn.disabled=false;btn.textContent='AI로 분석하기';
 };
 
+// L2 renders the page in a real headless browser (up to ~15s), so the user
+// can be stuck on this spinner a while — bump linkCheckToken to invalidate
+// any in-flight runLinkCheck() so a check the user already cancelled can't
+// silently jump them to a different screen later when it finally resolves.
+let linkCheckToken=0;
 document.getElementById('btnOpenLink').onclick=async()=>{
   const text=$('#msgText').value.trim();
   const m=text.match(/https?:\/\/\S+/);
@@ -794,10 +823,11 @@ document.getElementById('btnOpenLink').onclick=async()=>{
   if(!url){alert('문자 내용에서 링크 주소를 찾을 수 없습니다. 문자에 http(s):// 링크를 포함해주세요.');return;}
   await startSensors(); // this click doubles as the iOS permission gesture
   showScreen('checking');
-  await runLinkCheck(url);
+  await runLinkCheck(url,++linkCheckToken);
 };
+document.getElementById('btnCancelCheck').onclick=()=>{linkCheckToken++;showScreen('intro');};
 
-async function runLinkCheck(url){
+async function runLinkCheck(url,token){
   const tags=[];let l1verdict=null,l2verdict=null;
   $('#checkingText').innerHTML='<span class="pill layer">L1</span> 링크(도메인) 검사 중…';
   $('#checkingExplain').innerHTML='💡 L1 — 주소(도메인)가 진짜 은행 사이트인지 먼저 확인해요.';
@@ -807,6 +837,7 @@ async function runLinkCheck(url){
     const f=l1.features||{};
     tags.push(...[f.brandLookalike&&'브랜드 유사 도메인',f.brandPlusGenericWord&&'브랜드+의심 단어 조합',f.isPunycode&&'punycode 도메인',f.isSuspiciousTld&&'의심스러운 도메인 확장자',f.isShortener&&'단축 URL',f.isIp&&'IP 주소 직접 사용'].filter(Boolean));
   }catch(e){/* L1 unreachable — judged on L2 alone below */}
+  if(token!==linkCheckToken)return; // cancelled while L1 was in flight
   $('#checkingText').innerHTML='<span class="pill layer">L2</span> 랜딩페이지 검사 중…';
   $('#checkingExplain').innerHTML='💡 L2 — 실제로 그 페이지를 열어서 가짜 은행 로그인 화면인지 확인해요.';
   try{
@@ -814,6 +845,7 @@ async function runLinkCheck(url){
     l2verdict=l2.verdict;
     if(l2.signals)tags.push(...[l2.signals.looksLikeBankTemplate&&'은행 로그인 화면과 시각적으로 유사',l2.signals.apkDownload&&'앱 설치 유도',l2.signals.externalAppScheme&&'외부 앱 실행 시도',l2.signals.devtoolsBlocked&&'개발자도구 차단',l2.signals.overCollectingForm&&'과도한 개인정보 요구',!l2.httpsOk&&'HTTPS 미사용'].filter(Boolean));
   }catch(e){/* network-restricted or render failure — judged on L1 alone */}
+  if(token!==linkCheckToken)return; // cancelled while L2 was in flight
   const verdicts=[l1verdict,l2verdict].filter(Boolean);
   const worst=verdicts.includes('high')?'high':verdicts.includes('mid')?'mid':'low';
   if(worst==='high'){
@@ -974,7 +1006,6 @@ function openShake(decision,traceResult){
   const restBase=Math.max(0.1,median(baselineSamples.map(s=>s.mag)));
   const NEED=Math.max(restBase*4,restBase+3);
   let settled=false;
-  const BURST_GAP_MS=150;
   // A real phone starts streaming devicemotion the instant permission is
   // granted, well before this modal ever opens — so give it a brief grace
   // window, then offer the desktop fallback only if truly nothing arrived.
@@ -990,15 +1021,16 @@ function openShake(decision,traceResult){
     // the phone icon wobbles continuously (cute, always-on) but its amplitude
     // tracks the real accelerometer peak so it visibly reacts to the actual shake
     phoneIcon.style.setProperty('--shake-amp',Math.max(.35,Math.min(2.4,pk/NEED)));
-    // count temporally-separated BURSTS since the window opened, not raw
-    // qualifying samples — a real report: a car speed bump produced one
-    // ~150ms jolt that alone contains 6-9 qualifying samples at 60Hz,
-    // clearing the old sample-count check with zero deliberate shaking.
-    // A genuine shake is repeated back-and-forth motion spread across the
-    // window; counting distinct bursts (samples >=150ms apart start a new
-    // one) matches what the server now enforces authoritatively.
-    const qualifyingTimes=IMU.filter(s=>s.t>=startWall&&s.mag>=NEED).map(s=>s.t).sort((a,b)=>a-b);
-    let bursts=0,lastT=-Infinity;for(const qt of qualifyingTimes){if(qt-lastT>BURST_GAP_MS)bursts++;lastT=qt;}
+    // Mirrors the server's local-maxima peak count (server/src/app.js) so this
+    // on-screen "%" doesn't diverge from what actually gets graded — it used
+    // to count temporally-separated runs of qualifying samples instead, which
+    // undercounts a real continuous shake (magnitude often never drops back
+    // below threshold between reps) even though the server-side fix already
+    // authorizes it. This is still just a client-side ESTIMATE for visual
+    // feedback ("%(예상)") — the server recomputes it from scratch and is the
+    // only thing that actually decides pass/fail.
+    const win=IMU.filter(s=>s.t>=startWall).sort((a,b)=>a.t-b.t);
+    const bursts=countShakePeaks(win,NEED);
     const prog=Math.min(1,bursts/CFG.shakeHits);pct.textContent=Math.round(prog*100)+'%(예상)';
     ring.style.borderColor=prog>=1?'var(--green)':pk>=NEED?'var(--cyan)':'var(--line)';timer.textContent=(left/1000).toFixed(1)+'s';
     if((prog>=1||left<=0)&&!settled){settled=true;submitChallenge(decision,startWall,baselineSamples,undefined,false,traceResult);return;}
